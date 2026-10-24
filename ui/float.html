@@ -18,7 +18,7 @@
   .btn canvas { width: 40px; height: 40px; image-rendering: pixelated; display: block; }
   #bar { margin: 10px 12px 0; height: 8px; position: relative; cursor: pointer;
          background: #0008; box-shadow: 0 0 0 2px #000a; image-rendering: pixelated; }
-  #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #ff2d55; transition: width .5s linear; }
+  #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #ff2d55; transition: width .25s linear; }
   #pp { display: none; }
   #cover { display: none; position: absolute; left: 10px; top: 10px; width: 172px; height: 172px; object-fit: cover;
            border-radius: 14px; box-shadow: 0 0 0 2px #000c, 0 6px 14px #0009; transition: filter .3s, transform .3s; }
@@ -237,8 +237,7 @@ function render(st) {
   }
   setTitle(st.title || 'Lite Music');
   document.getElementById('artist').textContent = st.artist || '';
-  const f = st.dur > 0 ? Math.min(100, (st.pos / st.dur) * 100) : 0;
-  document.getElementById('fill').style.width = f + '%';
+  setProgress(st);
   if (!draggingVol) document.getElementById('vfill').style.width = Math.round((st.vol ?? 1) * 100) + '%';
 }
 // Parpadeo: cada 2.5-6 s mientras suena, cierra los ojos ~140 ms (a veces dos veces seguidas).
@@ -260,6 +259,26 @@ function scheduleWave() {
 }
 scheduleWave();
 let ppDrawn = false, draggingVol = false, shownTitle = null;
+// Línea de tiempo: se estima entre informes (cada ~0,5 s), llega al 100 % al final y vuelve a 0 sin deslizarse hacia atrás.
+const prog = { pos: 0, dur: 0, at: 0, frac: 0 };
+const fillEl = document.getElementById('fill');
+function setProgress(st) {
+  const pos = st.pos || 0, dur = st.dur || 0;
+  if (pos !== prog.pos || dur !== prog.dur) { prog.pos = pos; prog.dur = dur; prog.at = performance.now(); }
+}
+function paintProgress() {
+  let frac = 0;
+  if (prog.dur > 0) {
+    const est = Math.min(prog.dur, prog.pos + (playing ? (performance.now() - prog.at) / 1000 : 0));
+    frac = prog.dur - est < 0.9 && playing ? 1 : est / prog.dur;       // cerca del final: completa la barra
+  }
+  if (frac < prog.frac - 0.15) {                                        // canción nueva: salto instantáneo al inicio
+    fillEl.style.transition = 'none'; fillEl.style.width = (frac * 100) + '%';
+    void fillEl.offsetWidth; fillEl.style.transition = '';
+  } else fillEl.style.width = (frac * 100) + '%';
+  prog.frac = frac;
+}
+setInterval(paintProgress, 250);
 // Si el título no cabe, se desplaza suavemente de un lado a otro en vez de cortarse.
 function setTitle(text) {
   if (text === shownTitle) return;
