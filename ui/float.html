@@ -114,7 +114,7 @@ function drawBody(skin) {
   // pelo del pecho
   px(c, 22, 40, 1, 2, s.muzzleS); px(c, 26, 41, 1, 2, s.muzzleS);
 }
-function drawHead(skin, sleeping, c0) {
+function drawHead(skin, sleeping, c0, blink) {
   const c = c0 || document.getElementById('head').getContext('2d'), s = SKINS[skin];
   c.clearRect(0, 0, 48, 48);
   // diadema: anillo grueso con contorno, sombra y brillo (solo la mitad superior)
@@ -137,7 +137,7 @@ function drawHead(skin, sleeping, c0) {
     px(c, 20, 29, 1, 1, DARK); px(c, 28, 29, 1, 1, DARK);
     ell(c, 12, 26, 2.2, 1.5, '#f2907f'); ell(c, 36, 26, 2.2, 1.5, '#f2907f');                    // rubor
     [[17, 19], [31, 19]].forEach(([x, y]) => {                                                     // ojos
-      if (sleeping) { px(c, x - 2, y + 1, 5, 1, DARK); px(c, x - 3, y, 1, 1, DARK); px(c, x + 3, y, 1, 1, DARK); }
+      if (sleeping || blink) { px(c, x - 2, y + 1, 5, 1, DARK); px(c, x - 3, y, 1, 1, DARK); px(c, x + 3, y, 1, 1, DARK); }
       else { ell(c, x, y, 2.6, 3.4, DARK); px(c, x - 1, y - 2, 2, 2, '#fff'); px(c, x + 1, y + 1, 1, 1, '#fff'); }
     });
   } else {
@@ -153,7 +153,7 @@ function drawHead(skin, sleeping, c0) {
     [[11, 30], [10, 32], [37, 30], [38, 32]].forEach(([x, y], i) => px(c, i < 2 ? x - 5 : x, y, 5, 1, '#e8edf7')); // bigotes
     ell(c, 13, 28, 2.2, 1.4, '#f2a3b4'); ell(c, 35, 28, 2.2, 1.4, '#f2a3b4');
     [[17, 21], [31, 21]].forEach(([x, y]) => {                                                     // ojos verdes
-      if (sleeping) { px(c, x - 2, y + 1, 5, 1, DARK); px(c, x - 3, y, 1, 1, DARK); px(c, x + 3, y, 1, 1, DARK); }
+      if (sleeping || blink) { px(c, x - 2, y + 1, 5, 1, DARK); px(c, x - 3, y, 1, 1, DARK); px(c, x + 3, y, 1, 1, DARK); }
       else { ell(c, x, y, 3.2, 3.6, '#5ec27a'); ell(c, x, y, 3.2, 3.6, '#5ec27a'); px(c, x, y - 3, 1, 7, DARK);
              px(c, x - 1, y - 2, 2, 2, '#fff'); }
     });
@@ -214,6 +214,19 @@ function render(st) {
   document.getElementById('fill').style.width = f + '%';
   if (!draggingVol) document.getElementById('vfill').style.width = Math.round((st.vol ?? 1) * 100) + '%';
 }
+// Parpadeo: cada 2.5-6 s mientras suena, cierra los ojos ~140 ms (a veces dos veces seguidas).
+function blinkOnce(done) {
+  if (!playing || !(skin === 'dog' || skin === 'cat')) return done();
+  drawHead(skin, false, null, true);
+  setTimeout(() => { if (playing) drawHead(skin, false); done(); }, 140);
+}
+function scheduleBlink() {
+  setTimeout(() => blinkOnce(() => {
+    if (Math.random() < 0.25) setTimeout(() => blinkOnce(scheduleBlink), 200);
+    else scheduleBlink();
+  }), 2500 + Math.random() * 3500);
+}
+scheduleBlink();
 let ppDrawn = false, draggingVol = false, shownTitle = null;
 // Si el título no cabe, se desplaza suavemente de un lado a otro en vez de cortarse.
 function setTitle(text) {
