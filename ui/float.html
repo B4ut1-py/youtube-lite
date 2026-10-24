@@ -19,6 +19,18 @@
   #bar { margin: 10px 12px 0; height: 8px; position: relative; cursor: pointer;
          background: #0008; box-shadow: 0 0 0 2px #000a; image-rendering: pixelated; }
   #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #ff2d55; transition: width .5s linear; }
+  #pp { display: none; }
+  body.skin-none #stage { display: none; } body.skin-none #pp { display: block; }
+  body.skin-none #row { justify-content: center; gap: 14px; margin: 6px 0; }
+  #cover { display: none; position: absolute; left: 10px; top: 10px; width: 172px; height: 172px; object-fit: cover;
+           border-radius: 14px; box-shadow: 0 0 0 2px #000c, 0 6px 14px #0009; transition: filter .3s, transform .3s; }
+  body.skin-cover #cover { display: block; } body.skin-cover canvas#body, body.skin-cover canvas#head { display: none; }
+  body.skin-cover.paused #cover { filter: brightness(.55) saturate(.7); transform: scale(.97); }
+  body.skin-dog #cover, body.skin-cat #cover { display: none; }
+  #volrow { margin: 7px auto 0; width: 150px; display: flex; align-items: center; gap: 8px; }
+  #vicon { width: 22px; height: 22px; image-rendering: pixelated; filter: drop-shadow(0 0 2px #000a); }
+  #vbar { flex: 1; height: 6px; position: relative; cursor: pointer; background: #0008; box-shadow: 0 0 0 2px #000a; }
+  #vfill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: #fff; }
   #title { margin: 8px 6px 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
            text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000, 0 0 4px #000; letter-spacing: .3px; }
   #artist { margin: 1px 6px 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -33,12 +45,15 @@
     <div id="stage" title="Clic: pausar / reanudar. Arrastra para mover. Rueda: cambiar tamaño.">
       <canvas id="body" width="48" height="48"></canvas>
       <canvas id="head" width="48" height="48"></canvas>
+      <img id="cover" alt="">
     </div>
+    <button class="btn" id="pp" title="Reproducir / pausar"><canvas width="11" height="11"></canvas></button>
     <button class="btn" id="next" title="Siguiente"><canvas width="11" height="11"></canvas></button>
   </div>
   <div id="bar"><div id="fill"></div></div>
   <div id="title">Lite Music</div>
   <div id="artist"></div>
+  <div id="volrow" title="Volumen"><canvas id="vicon" width="11" height="11"></canvas><div id="vbar"><div id="vfill"></div></div></div>
 </div>
 <script>
 const inv = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
@@ -147,38 +162,60 @@ function drawHead(skin, sleeping, c0) {
     ell(c, cx + d * 3, 25, 1.2, 5, '#2a2233'); ell(c, cx + d * 2.8, 25, .7, 4, '#4a4262');          // almohadilla
   });
 }
-function drawIcon(btn, dir) {
-  const c = btn.querySelector('canvas').getContext('2d');
+function drawGlyph(canvas, shape) {
+  const c = canvas.getContext('2d');
   c.clearRect(0, 0, 11, 11);
-  const shape = (ox, oy, col) => {
-    c.fillStyle = col;
-    for (let i = 0; i < 4; i++) {
-      const x = dir > 0 ? 2 + i : 7 - i;
-      c.fillRect(x + ox, 2 + i + oy, 1, 7 - 2 * i);
-    }
-    c.fillRect((dir > 0 ? 7 : 2) + ox, 2 + oy, 1, 7);
-  };
-  [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ox, oy]) => shape(ox, oy, '#000'));
-  shape(0, 0, '#fff');
+  [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ox, oy]) => shape(c, ox, oy, '#000'));
+  shape(c, 0, 0, '#fff');
 }
+const skipShape = (dir) => (c, ox, oy, col) => {
+  c.fillStyle = col;
+  for (let i = 0; i < 4; i++) c.fillRect((dir > 0 ? 2 + i : 7 - i) + ox, 2 + i + oy, 1, 7 - 2 * i);
+  c.fillRect((dir > 0 ? 7 : 2) + ox, 2 + oy, 1, 7);
+};
+const playShape = (c, ox, oy, col) => { c.fillStyle = col; for (let i = 0; i < 4; i++) c.fillRect(3 + i + ox, 2 + i + oy, 1, 7 - 2 * i); c.fillRect(3 + ox, 2 + oy, 1, 7); };
+const pauseShape = (c, ox, oy, col) => { c.fillStyle = col; c.fillRect(3 + ox, 2 + oy, 2, 7); c.fillRect(7 + ox, 2 + oy, 2, 7); };
+const speakerShape = (c, ox, oy, col) => {
+  c.fillStyle = col; c.fillRect(1 + ox, 4 + oy, 2, 3); c.fillRect(3 + ox, 3 + oy, 1, 5); c.fillRect(4 + ox, 2 + oy, 1, 7);
+  c.fillRect(6 + ox, 4 + oy, 1, 3); c.fillRect(8 + ox, 3 + oy, 1, 5);
+};
 
 /* ---------- Estado ---------- */
 let skin = '', playing = false, sleeping = null;
+let cover = '';
 function render(st) {
-  if (st.skin !== skin) { skin = st.skin; drawBody(skin); sleeping = null; }
+  if (st.skin !== skin) {
+    skin = st.skin; sleeping = null;
+    document.body.classList.remove('skin-dog', 'skin-cat', 'skin-cover', 'skin-none');
+    document.body.classList.add('skin-' + skin);
+    if (skin === 'dog' || skin === 'cat') drawBody(skin);
+  }
+  const was = playing;
   playing = !!st.playing;
-  if (sleeping !== !playing) { sleeping = !playing; drawHead(skin, sleeping); }
+  document.body.classList.toggle('paused', !playing);
+  if (sleeping !== !playing) {
+    sleeping = !playing;
+    if (skin === 'dog' || skin === 'cat') drawHead(skin, sleeping);
+  }
+  if (was !== playing || !ppDrawn) { drawGlyph(document.querySelector('#pp canvas'), playing ? pauseShape : playShape); ppDrawn = true; }
+  const url = st.cover || '';
+  if (url !== cover) {
+    cover = url; const img = document.getElementById('cover');
+    if (url) img.src = url; else img.removeAttribute('src');
+  }
   document.getElementById('title').textContent = st.title || 'Lite Music';
   document.getElementById('artist').textContent = st.artist || '';
   const f = st.dur > 0 ? Math.min(100, (st.pos / st.dur) * 100) : 0;
   document.getElementById('fill').style.width = f + '%';
+  if (!draggingVol) document.getElementById('vfill').style.width = Math.round((st.vol ?? 1) * 100) + '%';
 }
+let ppDrawn = false, draggingVol = false;
 async function poll() {
   try { render(await inv('get_state')); } catch (_) {}
 }
 
 /* ---------- Animación: balanceo suave de la cabeza ---------- */
-const head = document.getElementById('head');
+const head = document.getElementById('head'), bodyEl = document.getElementById('body');
 let t = 0, last = performance.now(), amp = 0;
 function frame(now) {
   const dt = (now - last) / 1000; last = now;
@@ -186,6 +223,9 @@ function frame(now) {
   if (playing) t += dt;
   const s = Math.sin(t * 2 * Math.PI / 1.6);
   head.style.transform = `translateX(${(s * 6 * amp).toFixed(2)}px) rotate(${(s * 7 * amp).toFixed(2)}deg)`;
+  // cuerpo: rebota suave al ritmo (2 veces por vaivén de la cabeza) y se inclina al revés que la cabeza
+  const bob = (1 - Math.cos(t * 4 * Math.PI / 1.6)) / 2;
+  bodyEl.style.transform = `translate(${(-s * 2.5 * amp).toFixed(2)}px, ${(-bob * 3 * amp).toFixed(2)}px) rotate(${(-s * 2 * amp).toFixed(2)}deg)`;
   requestAnimationFrame(frame);
 }
 
@@ -193,7 +233,7 @@ function frame(now) {
 const stage = document.getElementById('stage');
 let down = null;
 document.body.addEventListener('mousedown', (e) => {
-  if (e.button !== 0 || e.target.closest('.btn') || e.target.closest('#bar')) return;
+  if (e.button !== 0 || e.target.closest('.btn') || e.target.closest('#bar') || e.target.closest('#volrow')) return;
   down = { x: e.screenX, y: e.screenY, onStage: !!e.target.closest('#stage'), moved: false };
 });
 document.body.addEventListener('mousemove', (e) => {
@@ -205,6 +245,17 @@ document.body.addEventListener('mouseup', () => {
   if (down && down.onStage && !down.moved) inv('control', { action: 'playpause' });
   down = null;
 });
+document.getElementById('pp').onclick = () => inv('control', { action: 'playpause' });
+const vbar = document.getElementById('vbar');
+const setVol = (e) => {
+  const r = vbar.getBoundingClientRect();
+  const v = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  document.getElementById('vfill').style.width = Math.round(v * 100) + '%';
+  inv('control', { action: 'volume', value: v });
+};
+vbar.addEventListener('mousedown', (e) => { draggingVol = true; setVol(e); e.stopPropagation(); });
+window.addEventListener('mousemove', (e) => { if (draggingVol) setVol(e); });
+window.addEventListener('mouseup', () => { draggingVol = false; });
 document.getElementById('prev').onclick = () => inv('control', { action: 'prev' });
 document.getElementById('next').onclick = () => inv('control', { action: 'next' });
 document.getElementById('bar').onclick = (e) => {
@@ -218,8 +269,9 @@ document.body.addEventListener('wheel', (e) => {
   inv('scale_float', { delta: e.deltaY < 0 ? 0.1 : -0.1 });
 }, { passive: false });
 
-drawIcon(document.getElementById('prev'), -1);
-drawIcon(document.getElementById('next'), 1);
+drawGlyph(document.querySelector('#prev canvas'), skipShape(-1));
+drawGlyph(document.querySelector('#next canvas'), skipShape(1));
+drawGlyph(document.getElementById('vicon'), speakerShape);
 if (window.__TAURI_INTERNALS__) { poll(); setInterval(poll, 500); }
 requestAnimationFrame(frame);
 window.__render = render; // para pruebas

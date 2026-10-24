@@ -3,8 +3,9 @@
 use std::{fs, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     LogicalSize,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
@@ -24,6 +25,8 @@ const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreen
 struct PlayerState {
     title: String,
     artist: String,
+    cover: String,
+    vol: f64,
     playing: bool,
     pos: f64,
     dur: f64,
@@ -45,7 +48,7 @@ fn load_skin(app: &AppHandle) -> String {
     skin_path(app)
         .and_then(|p| fs::read_to_string(p).ok())
         .map(|s| s.trim().to_string())
-        .filter(|s| s == "dog" || s == "cat")
+        .filter(|s| matches!(s.as_str(), "dog" | "cat" | "cover" | "none"))
         .unwrap_or_else(|| "dog".into())
 }
 
@@ -60,7 +63,7 @@ fn set_skin(app: &AppHandle, skin: &str) {
 }
 
 const FLOAT_W: f64 = 340.0;
-const FLOAT_H: f64 = 350.0;
+const FLOAT_H: f64 = 385.0;
 
 fn scale_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("size.txt"))
@@ -107,10 +110,12 @@ fn toggle_float(app: &AppHandle) {
 // La página de YouTube Music informa de la canción; devuelve si el flotante está visible
 // (la página usa eso para consultar con menos frecuencia cuando no hace falta).
 #[tauri::command]
-fn report_state(state: tauri::State<AppState>, title: String, artist: String, playing: bool, pos: f64, dur: f64) -> bool {
+fn report_state(state: tauri::State<AppState>, title: String, artist: String, cover: String, vol: f64, playing: bool, pos: f64, dur: f64) -> bool {
     let mut p = state.player.lock().unwrap();
     p.title = title;
     p.artist = artist;
+    p.cover = cover;
+    p.vol = vol;
     p.playing = playing;
     p.pos = pos;
     p.dur = dur;
@@ -128,6 +133,7 @@ fn control(app: AppHandle, action: String, value: Option<f64>) {
         "playpause" => "window.__lm&&window.__lm.playPause()".to_string(),
         "next" => "window.__lm&&window.__lm.next()".to_string(),
         "prev" => "window.__lm&&window.__lm.prev()".to_string(),
+        "volume" => format!("window.__lm&&window.__lm.setVolume({})", value.unwrap_or(1.0).clamp(0.0, 1.0)),
         "seek" => format!("window.__lm&&window.__lm.seek({})", value.unwrap_or(0.0).clamp(0.0, 1.0)),
         _ => return,
     };
@@ -162,6 +168,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float])
         .manage(AppState { scale: Mutex::new(1.0), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
         .setup(|app| {
             #[allow(unused_mut)]
@@ -183,12 +190,16 @@ fn main() {
             }
 
             let window = builder.build()?;
+            // Arranque con Windows: empieza oculta en la bandeja.
+            if std::env::args().any(|a| a == "--minimized") {
+                hide(&window);
+            }
 
             // Reproductor flotante: sin marco, sin fondo, siempre encima.
             #[allow(unused_mut)]
             let mut fb = WebviewWindowBuilder::new(app, "float", WebviewUrl::App("float.html".into()))
                 .title("Lite Music Float")
-                .inner_size(340.0, 350.0)
+                .inner_size(340.0, 385.0)
                 .decorations(false)
                 .transparent(true)
                 .shadow(false)
@@ -218,22 +229,27 @@ fn main() {
             let m_next = MenuItem::with_id(app, "next", "Siguiente", true, None::<&str>)?;
             let m_prev = MenuItem::with_id(app, "prev", "Anterior", true, None::<&str>)?;
             let m_float = MenuItem::with_id(app, "float", "Mostrar / ocultar flotante", true, None::<&str>)?;
-            let m_dog = MenuItem::with_id(app, "dog", "Flotante: perro", true, None::<&str>)?;
-            let m_cat = MenuItem::with_id(app, "cat", "Flotante: gato", true, None::<&str>)?;
+            let m_dog = MenuItem::with_id(app, "dog", "Perro", true, None::<&str>)?;
+            let m_cat = MenuItem::with_id(app, "cat", "Gato", true, None::<&str>)?;
+            let m_cover = MenuItem::with_id(app, "cover", "Carátula", true, None::<&str>)?;
+            let m_none = MenuItem::with_id(app, "none", "Sin imagen (solo controles)", true, None::<&str>)?;
+            let m_skin = Submenu::with_items(app, "Aspecto del flotante", true, &[&m_dog, &m_cat, &m_cover, &m_none])?;
+            let m_auto = CheckMenuItem::with_id(app, "auto", "Iniciar con Windows", true, app.autolaunch().is_enabled().unwrap_or(false), None::<&str>)?;
+            let m_auto_c = m_auto.clone();
             let s50 = MenuItem::with_id(app, "sz50", "Muy pequeño (50%)", true, None::<&str>)?;
             let s70 = MenuItem::with_id(app, "sz70", "Pequeño (70%)", true, None::<&str>)?;
             let s100 = MenuItem::with_id(app, "sz100", "Normal (100%)", true, None::<&str>)?;
             let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s50, &s70, &s100])?;
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_dog, &m_cat, &sep, &m_size, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &sep, &m_auto, &sep, &m_quit])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Lite Music")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, ev| match ev.id.as_ref() {
+                .on_menu_event(move |app, ev| match ev.id.as_ref() {
                     "show" => show(app),
                     "pp" => js(app, "window.__lm&&window.__lm.playPause()"),
                     "next" => js(app, "window.__lm&&window.__lm.next()"),
@@ -244,6 +260,12 @@ fn main() {
                     "sz100" => set_float_scale(app, 1.0),
                     "dog" => set_skin(app, "dog"),
                     "cat" => set_skin(app, "cat"),
+                    "cover" => set_skin(app, "cover"),
+                    "none" => set_skin(app, "none"),
+                    "auto" => {
+                        let al = app.autolaunch();
+                        let _ = if m_auto_c.is_checked().unwrap_or(false) { al.enable() } else { al.disable() };
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })

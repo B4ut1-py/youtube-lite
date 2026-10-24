@@ -22,6 +22,11 @@
   });
 
   // Funciones llamadas desde Rust (bandeja y reproductor flotante)
+  // Volumen elegido desde el flotante: se reaplica si YouTube lo reinicia al cambiar de canción.
+  let lmVol = null;
+  document.addEventListener('loadedmetadata', (e) => {
+    if (lmVol !== null && e.target instanceof HTMLVideoElement) e.target.volume = lmVol;
+  }, true);
   const click = (sel) => document.querySelector(sel)?.click();
   window.__lm = {
     playPause: () => {
@@ -30,6 +35,10 @@
     },
     next: () => click('.next-button'),
     prev: () => click('.previous-button'),
+    setVolume: (f) => {
+      lmVol = Math.min(1, Math.max(0, f));
+      const v = document.querySelector('video'); if (v) v.volume = lmVol;
+    },
     seek: (f) => { const v = document.querySelector('video'); if (v && v.duration) v.currentTime = f * v.duration; },
     setHidden: (h) => document.documentElement?.classList.toggle('lm-hidden', h),
   };
@@ -42,8 +51,11 @@
     try {
       const md = navigator.mediaSession?.metadata;
       const v = document.querySelector('video');
+      const art = md?.artwork || [];
+      const px = (a) => parseInt((a.sizes || '0').split('x')[0], 10) || 0;
+      const cover = art.length ? art.reduce((b, a) => (px(a) >= px(b) ? a : b)).src : '';
       wanted = await invoke('report_state', {
-        title: md?.title || '', artist: md?.artist || '',
+        title: md?.title || '', artist: md?.artist || '', cover, vol: v ? v.volume : 1,
         playing: !!v && !v.paused && !v.ended,
         pos: v?.currentTime || 0, dur: Number.isFinite(v?.duration) ? v.duration : 0,
       });
