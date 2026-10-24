@@ -4,7 +4,7 @@ use std::{fs, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
@@ -55,6 +55,28 @@ fn set_skin(app: &AppHandle, skin: &str) {
         }
         let _ = fs::write(p, skin);
     }
+}
+
+fn theme_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("theme.txt"))
+}
+
+// El rediseño está activado salvo que se haya guardado "off".
+fn load_theme(app: &AppHandle) -> bool {
+    theme_path(app)
+        .and_then(|p| fs::read_to_string(p).ok())
+        .map(|s| s.trim() != "off")
+        .unwrap_or(true)
+}
+
+fn set_theme(app: &AppHandle, on: bool) {
+    if let Some(p) = theme_path(app) {
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        let _ = fs::write(p, if on { "on" } else { "off" });
+    }
+    js(app, &format!("window.__lm&&window.__lm.setTheme({on})"));
 }
 
 fn toggle_float(app: &AppHandle) {
@@ -135,7 +157,11 @@ fn main() {
             .inner_size(1100.0, 720.0)
             .min_inner_size(420.0, 500.0)
             .user_agent(UA)
-            .initialization_script(include_str!("inject.js"));
+            .initialization_script(format!(
+                "window.__LM_THEME={};{}",
+                load_theme(app.handle()),
+                include_str!("inject.js")
+            ));
 
             // Menos procesos y sin servicios de red/actualización de fondo de WebView2.
             #[cfg(windows)]
@@ -180,21 +206,24 @@ fn main() {
             let m_float = MenuItem::with_id(app, "float", "Mostrar / ocultar flotante", true, None::<&str>)?;
             let m_dog = MenuItem::with_id(app, "dog", "Flotante: perro", true, None::<&str>)?;
             let m_cat = MenuItem::with_id(app, "cat", "Flotante: gato", true, None::<&str>)?;
+            let m_theme = CheckMenuItem::with_id(app, "theme", "Diseño minimalista", true, load_theme(app.handle()), None::<&str>)?;
+            let m_theme_c = m_theme.clone();
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_dog, &m_cat, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_dog, &m_cat, &sep, &m_theme, &sep, &m_quit])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Lite Music")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, ev| match ev.id.as_ref() {
+                .on_menu_event(move |app, ev| match ev.id.as_ref() {
                     "show" => show(app),
                     "pp" => js(app, "window.__lm&&window.__lm.playPause()"),
                     "next" => js(app, "window.__lm&&window.__lm.next()"),
                     "prev" => js(app, "window.__lm&&window.__lm.prev()"),
                     "float" => toggle_float(app),
+                    "theme" => set_theme(app, m_theme_c.is_checked().unwrap_or(true)),
                     "dog" => set_skin(app, "dog"),
                     "cat" => set_skin(app, "cat"),
                     "quit" => app.exit(0),

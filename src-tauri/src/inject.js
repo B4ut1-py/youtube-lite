@@ -2,7 +2,7 @@
 (() => {
   if (location.hostname !== 'music.youtube.com') return;
 
-  const css = `
+  const themeCss = `
     :root {
       --lm-bg: #0b0b0f; --lm-surface: #15151c; --lm-hover: #1d1d27; --lm-line: #ffffff14;
       --lm-text: #f4f4f7; --lm-dim: #9a9aa8; --lm-accent: #ff2d55;
@@ -48,6 +48,9 @@
     .title, h2, h1 { letter-spacing: -.2px; }
     ytmusic-carousel-shelf-basic-header-renderer .title { font-size: 26px !important; font-weight: 700 !important; }
 
+  `;
+
+  const baseCss = `
     /* Fuera lo sobrante */
     ytmusic-mealbar-promo-renderer, ytmusic-statement-banner-renderer,
     ytmusic-popup-container tp-yt-paper-dialog:has(ytmusic-mealbar-promo-renderer) { display: none !important; }
@@ -62,9 +65,28 @@
     html.lm-hidden *, html.lm-hidden *::before, html.lm-hidden *::after { animation: none !important; transition: none !important; }
     html.lm-hidden ytmusic-player-page, html.lm-hidden #player { visibility: hidden !important; }
   `;
-  const style = document.createElement('style');
-  style.textContent = css;
-  (document.head || document.documentElement).appendChild(style);
+  // El script corre al crear el documento: puede que aún no exista <html>.
+  const whenRoot = (fn) => {
+    if (document.documentElement) return fn();
+    const mo = new MutationObserver(() => {
+      if (document.documentElement) { mo.disconnect(); fn(); }
+    });
+    mo.observe(document, { childList: true });
+  };
+  const addStyle = (css) => {
+    const el = document.createElement('style');
+    el.textContent = css;
+    (document.head || document.documentElement).appendChild(el);
+    return el;
+  };
+  // El rediseño es opcional: Rust inyecta window.__LM_THEME antes de este script.
+  let themeOn = window.__LM_THEME !== false;
+  let themeStyle = null;
+  whenRoot(() => {
+    addStyle(baseCss);
+    themeStyle = addStyle(themeCss);
+    themeStyle.disabled = !themeOn;
+  });
 
   // Funciones llamadas desde Rust (bandeja y reproductor flotante)
   const click = (sel) => document.querySelector(sel)?.click();
@@ -73,7 +95,8 @@
     next: () => click('.next-button'),
     prev: () => click('.previous-button'),
     seek: (f) => { const v = document.querySelector('video'); if (v && v.duration) v.currentTime = f * v.duration; },
-    setHidden: (h) => document.documentElement.classList.toggle('lm-hidden', h),
+    setTheme: (on) => { themeOn = on; if (themeStyle) themeStyle.disabled = !on; },
+    setHidden: (h) => document.documentElement?.classList.toggle('lm-hidden', h),
   };
 
   // Informa de la canción al reproductor flotante (1 s si se ve, 5 s si no)
