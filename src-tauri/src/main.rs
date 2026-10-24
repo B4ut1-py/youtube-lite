@@ -55,7 +55,7 @@ fn main() {
             {
                 builder = builder.additional_browser_args(
                     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate \
-                     --disable-background-networking --disable-component-update \
+                     --disable-background-networking --disable-component-update --disable-gpu \
                      --disable-sync --renderer-process-limit=1 --enable-low-end-device-mode",
                 );
             }
