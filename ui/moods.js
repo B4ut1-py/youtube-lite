@@ -186,6 +186,35 @@ const SCENES = {
     if (paused || (a && a.name === 'bostezo' && h > .5)) { px(c, 40, 8, 3, 1, '#fff'); px(c, 41, 9, 1, 1, '#fff'); px(c, 40, 10, 3, 1, '#fff'); }
   },
 
+  estudiando(c, t, a, paused) {
+    const h = a ? hold(a.u) : 0, writing = a && a.name === 'apuntes', flip = a && a.name === 'pagina';
+    const o = { shirt: '#c9822b', shirtS: '#9a5f17', hair: '#2a1a14', hood: '#c9822b', hoodS: '#9a5f17', phones: 1,
+                eyes: paused ? 'closed' : (t % 5.2 < .12 ? 'closed' : 'open'), eyeDx: Math.floor(t * 1.5) % 2, dy: 1, L: [17, 42], R: [31, 42] };
+    if (writing) o.R = [31 + Math.round(Math.sin(t * 9) * 1.5), 41 + (Math.floor(t * 9) % 2 ? 0 : 1)];
+    const q = flip ? clamp01((a.u - 0.15) / 0.7) : 0;
+    if (flip && a.u > .1 && a.u < .9) o.R = [24 + Math.cos(q * Math.PI) * 11, 41 - Math.sin(q * Math.PI) * 3];
+    // lámpara cálida
+    c.globalAlpha = .16; tri(c, [9, 35, 21, 35, 27, 47], '#ffd966'); tri(c, [9, 35, 21, 35, 13, 47], '#ffd966'); c.globalAlpha = 1;
+    deskTop(c, '#7a5a3a', '#9a7650');
+    personBody(c, o); personArms(c, o); personHead(c, o);
+    // libro abierto
+    px(c, 11, 35, 26, 9, DARK); px(c, 12, 36, 12, 7, '#f4f1e6'); px(c, 24, 36, 12, 7, '#faf7ee'); px(c, 24, 36, 1, 7, '#c9c4b0');
+    px(c, 12, 43, 24, 1, '#9a5f17');
+    [38, 40].forEach((y, i) => { px(c, 14, y, 8 - i, 1, '#b8b3a0'); px(c, 26, y, 8 - i, 1, '#b8b3a0'); });
+    if (writing) for (let i = 0; i < Math.ceil(a.u * 4); i++) px(c, 26, 37 + i, 6, 1, '#3a3a8a');
+    if (flip && a.u > .1 && a.u < .9) {                                                    // hoja que se da vuelta
+      const w = Math.round(Math.abs(Math.cos(q * Math.PI)) * 11);
+      if (q < .5) { px(c, 24, 34, w + 1, 9, DARK); px(c, 24, 35, w, 7, '#fff'); } else { px(c, 24 - w - 1, 34, w + 1, 9, DARK); px(c, 24 - w, 35, w, 7, '#fff'); }
+    }
+    hand(c, o.L[0], o.L[1]); hand(c, o.R[0], o.R[1]);
+    if (writing) { const x = Math.round(o.R[0]), y = Math.round(o.R[1]); px(c, x + 1, y - 1, 1, 1, '#ffd966'); px(c, x + 2, y - 2, 1, 1, '#ffd966'); px(c, x + 3, y - 3, 1, 1, '#ffd966'); px(c, x + 4, y - 4, 1, 1, '#ff8fa3'); px(c, x, y, 1, 1, DARK); }
+    // lámpara y libros apilados
+    px(c, 1, 42, 7, 2, DARK); px(c, 2, 42, 5, 1, '#444a5e'); px(c, 3, 30, 2, 12, DARK); px(c, 3, 31, 1, 11, '#444a5e'); px(c, 3, 29, 10, 2, DARK); px(c, 4, 29, 8, 1, '#444a5e');
+    tri(c, [9, 30, 18, 30, 13, 36], DARK); tri(c, [10, 31, 17, 31, 13, 35], '#ffd966');
+    rr2(c, 37, 39, 9, 3, '#c8344f'); rr2(c, 38, 36, 8, 3, '#4a7bd0'); rr2(c, 37, 33, 9, 3, '#3ddc84');
+    if (paused) { px(c, 40, 8, 3, 1, '#fff'); px(c, 41, 9, 1, 1, '#fff'); px(c, 40, 10, 3, 1, '#fff'); }
+  },
+
   festejando(c, t, a, paused) {
     const k = Math.floor(t * 2.5) % 2, h = a ? hold(a.u) : 0, cols = ['#ff4d6d', '#ffd966', '#5ef28a', '#7fe9ff', '#c08cff'];
     const jump = a && a.name === 'salto' ? Math.round(4 * Math.abs(Math.sin(a.u * Math.PI * 2.5)) * (a.u < .85 ? 1 : 0)) : 0;
@@ -215,6 +244,7 @@ const MOODS = {
   programando: { actions: [['bebida', 4.2], ['pensar', 4.5]] },
   tradeando: { actions: [['sube', 4.5], ['baja', 4.5]] },
   descansando: { actions: [['sorbo', 4.5], ['bostezo', 4]] },
+  estudiando: { actions: [['apuntes', 4.5], ['pagina', 3.6]] },
   festejando: { actions: [['confeti', 3.5], ['salto', 3.2]] },
 };
 // Estado de una escena: pose base y, cada 15-30 s, una acción al azar que dura unos segundos.
