@@ -169,15 +169,17 @@ const SCENES = {
   },
 
   descansando(c, t, a, paused) {
-    const h = a ? hold(a.u) : 0, beat = Math.floor(t * 1.6) % 2, br = Math.floor(t * 0.9) % 2;
+    // El cuerpo y la cabeza quedan quietos (apoyados en la almohada); solo respira la manta.
+    const h = a ? hold(a.u) : 0, breath = paused ? 0 : (Math.floor(t * 0.9) % 2);
     ell(c, 24, 25, 15, 15, '#cdb8ff');
-    const o = { shirt: '#6b7bd6', shirtS: '#4a57a8', hair: '#3a2418', hood: '#6b7bd6', hoodS: '#4a57a8', phones: 1, eyes: 'closed', blanket: 1, bodyDy: paused ? 1 : br,
-                dy: paused ? 1 : (beat && !a ? 1 : 0), mouth: 'smile', L: [30, 41], R: [20, 41] };
+    blob(c, 24, 41, 18, 8, '#e8dcff', '#bfa9f0');                                   // almohada
+    const o = { shirt: '#6b7bd6', shirtS: '#4a57a8', hair: '#3a2418', hood: '#6b7bd6', hoodS: '#4a57a8', phones: 1, eyes: 'closed',
+                mouth: 'smile', L: [30, 41], R: [20, 41] };
     let mug = [31, 36];
-    if (a && a.name === 'sorbo') { o.R = [lerp(30, 24, h), lerp(41, 30, h)]; mug = [lerp(31, o.R[0] - 2, smooth(a.u / .2)), lerp(36, o.R[1] - 4, smooth(a.u / .2))]; o.dy = -Math.round(h); o.mouth = h > .6 ? 'sip' : 'smile'; }
-    if (a && a.name === 'bostezo') { o.L = [lerp(30, 6, h), lerp(41, 16, h)]; o.R = [lerp(20, 42, h), lerp(41, 16, h)]; o.mouth = h > .4 ? 'yawn' : 'smile'; o.dy = -Math.round(h); }
+    if (a && a.name === 'sorbo') { o.R = [lerp(30, 24, h), lerp(41, 30, h)]; mug = [lerp(31, o.R[0] - 2, smooth(a.u / .2)), lerp(36, o.R[1] - 4, smooth(a.u / .2))]; o.mouth = h > .6 ? 'sip' : 'smile'; }
+    if (a && a.name === 'bostezo') { o.L = [lerp(30, 6, h), lerp(41, 16, h)]; o.R = [lerp(20, 42, h), lerp(41, 16, h)]; o.mouth = h > .4 ? 'yawn' : 'smile'; }
     personBody(c, o); personArms(c, o); personHead(c, o);
-    blob(c, 24, 47, 20, 8, '#a98bf0', '#7a5fc4'); px(c, 10, 41, 28, 1, '#c8b3ff');
+    blob(c, 24, 47 - breath, 20, 8, '#a98bf0', '#7a5fc4'); px(c, 10, 41 - breath, 28, 1, '#c8b3ff');   // manta
     hand(c, o.L[0], o.L[1]); hand(c, o.R[0], o.R[1]);
     if (!(a && a.name === 'bostezo' && h > .3)) { mugPx(c, Math.round(mug[0]), Math.round(mug[1])); steam(c, Math.round(mug[0]) + 2, Math.round(mug[1]) - 1, t); }
     px(c, 3, 38, 2, 9, '#3b8f4a'); tri(c, [1, 36, 3, 29, 6, 36], '#4fc062'); tri(c, [3, 38, 7, 31, 9, 38], '#3b8f4a');
