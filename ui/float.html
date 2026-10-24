@@ -264,6 +264,7 @@ const prog = { pos: 0, dur: 0, at: 0, frac: 0 };
 const fillEl = document.getElementById('fill');
 function setProgress(st) {
   const pos = st.pos || 0, dur = st.dur || 0;
+  document.getElementById('bar').title = `${pos.toFixed(1)} s / ${dur.toFixed(1)} s`;
   if (pos !== prog.pos || dur !== prog.dur) { prog.pos = pos; prog.dur = dur; prog.at = performance.now(); }
 }
 function paintProgress() {

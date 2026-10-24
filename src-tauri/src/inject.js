@@ -38,6 +38,21 @@
   document.addEventListener('pointerdown', (e) => {
     if (e.target.closest?.('#volume-slider, #expand-volume-slider, .volume-slider')) lmVol = null;
   }, true);
+  // Tiempos de la canción tal como los muestra YouTube Music (su barra y su "0:12 / 3:45"). El elemento <video>
+  // puede durar distinto que la canción, y entonces la barra nunca llega al final.
+  const num = (x) => { x = Number(x); return Number.isFinite(x) ? x : 0; };
+  const toSec = (t) => t.split(':').reduce((a, b) => a * 60 + Number(b), 0);
+  const readTimes = (v) => {
+    const sl = document.querySelector('ytmusic-player-bar #progress-bar');
+    const m = (document.querySelector('ytmusic-player-bar .time-info')?.textContent || '').match(/(\d+(?::\d+)*)\s*\/\s*(\d+(?::\d+)*)/);
+    if (m && toSec(m[2]) > 0) {                                  // el texto "0:12 / 3:45" manda: son segundos seguros
+      const dur = toSec(m[2]);
+      const exact = sl && Math.abs(num(sl.max) - dur) < 1.5;     // la barra, si usa la misma escala, tiene más precisión
+      return { pos: exact ? num(sl.value) : toSec(m[1]), dur };
+    }
+    if (sl && num(sl.max) > 0 && num(sl.max) !== 100) return { pos: num(sl.value), dur: num(sl.max) };
+    return { pos: num(v?.currentTime), dur: num(v?.duration) };
+  };
   const click = (sel) => document.querySelector(sel)?.click();
   window.__lm = {
     playPause: () => {
@@ -50,7 +65,8 @@
       lmVol = Math.min(1, Math.max(0, f));
       const v = document.querySelector('video'); if (v) { applying = true; v.volume = lmVol; applying = false; }
     },
-    seek: (f) => { const v = document.querySelector('video'); if (v && v.duration) v.currentTime = f * v.duration; },
+    times: () => readTimes(document.querySelector('video')),
+    seek: (f) => { const v = document.querySelector('video'); const d = readTimes(v).dur; if (v && d) v.currentTime = f * d; },
     setHidden: (h) => document.documentElement?.classList.toggle('lm-hidden', h),
   };
 
@@ -68,7 +84,7 @@
       wanted = await invoke('report_state', {
         title: md?.title || '', artist: md?.artist || '', cover, vol: v ? v.volume : 1,
         playing: !!v && !v.paused && !v.ended,
-        pos: v?.currentTime || 0, dur: Number.isFinite(v?.duration) ? v.duration : 0,
+        ...readTimes(v),
       });
     } catch (_) {}
     setTimeout(tick, wanted ? 500 : 5000);
