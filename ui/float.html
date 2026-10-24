@@ -30,7 +30,7 @@
 <div id="wrap">
   <div id="row">
     <button class="btn" id="prev" title="Anterior"><canvas width="11" height="11"></canvas></button>
-    <div id="stage" title="Clic: pausar / reanudar. Arrastra para mover.">
+    <div id="stage" title="Clic: pausar / reanudar. Arrastra para mover. Rueda: cambiar tamaño.">
       <canvas id="body" width="48" height="48"></canvas>
       <canvas id="head" width="48" height="48"></canvas>
     </div>
@@ -211,6 +211,12 @@ document.getElementById('bar').onclick = (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   inv('control', { action: 'seek', value: (e.clientX - r.left) / r.width });
 };
+
+// Rueda del ratón: achicar / agrandar el flotante
+document.body.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  inv('scale_float', { delta: e.deltaY < 0 ? 0.1 : -0.1 });
+}, { passive: false });
 
 drawIcon(document.getElementById('prev'), -1);
 drawIcon(document.getElementById('next'), 1);

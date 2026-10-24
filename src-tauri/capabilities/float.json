@@ -3,5 +3,5 @@
   "identifier": "float-player",
   "description": "Reproductor flotante: leer estado, controlar y arrastrar la ventana.",
   "windows": ["float"],
-  "permissions": ["allow-get-state", "allow-control", "core:window:allow-start-dragging"]
+  "permissions": ["allow-get-state", "allow-control", "allow-scale-float", "core:window:allow-start-dragging"]
 }

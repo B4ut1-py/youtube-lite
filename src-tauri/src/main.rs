@@ -4,7 +4,8 @@ use std::{fs, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    LogicalSize,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
@@ -31,6 +32,7 @@ struct PlayerState {
 }
 
 struct AppState {
+    scale: Mutex<f64>,
     player: Mutex<PlayerState>,
     float_visible: Mutex<bool>,
 }
@@ -57,26 +59,41 @@ fn set_skin(app: &AppHandle, skin: &str) {
     }
 }
 
-fn theme_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("theme.txt"))
+const FLOAT_W: f64 = 340.0;
+const FLOAT_H: f64 = 350.0;
+
+fn scale_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("size.txt"))
 }
 
-// El rediseño está activado salvo que se haya guardado "off".
-fn load_theme(app: &AppHandle) -> bool {
-    theme_path(app)
+fn load_scale(app: &AppHandle) -> f64 {
+    scale_path(app)
         .and_then(|p| fs::read_to_string(p).ok())
-        .map(|s| s.trim() != "off")
-        .unwrap_or(true)
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .map(|v| v.clamp(0.4, 1.2))
+        .unwrap_or(1.0)
 }
 
-fn set_theme(app: &AppHandle, on: bool) {
-    if let Some(p) = theme_path(app) {
+// Cambia el tamaño del flotante: la ventana y su contenido (zoom) escalan juntos.
+fn set_float_scale(app: &AppHandle, scale: f64) {
+    let scale = scale.clamp(0.4, 1.2);
+    *app.state::<AppState>().scale.lock().unwrap() = scale;
+    if let Some(w) = app.get_webview_window("float") {
+        let _ = w.set_size(LogicalSize::new(FLOAT_W * scale, FLOAT_H * scale));
+        let _ = w.set_zoom(scale);
+    }
+    if let Some(p) = scale_path(app) {
         if let Some(dir) = p.parent() {
             let _ = fs::create_dir_all(dir);
         }
-        let _ = fs::write(p, if on { "on" } else { "off" });
+        let _ = fs::write(p, format!("{scale:.2}"));
     }
-    js(app, &format!("window.__lm&&window.__lm.setTheme({on})"));
+}
+
+#[tauri::command]
+fn scale_float(app: AppHandle, delta: f64) {
+    let cur = *app.state::<AppState>().scale.lock().unwrap();
+    set_float_scale(&app, cur + delta);
 }
 
 fn toggle_float(app: &AppHandle) {
@@ -143,8 +160,8 @@ fn js(app: &AppHandle, code: &str) {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![report_state, get_state, control])
-        .manage(AppState { player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
+        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float])
+        .manage(AppState { scale: Mutex::new(1.0), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
         .setup(|app| {
             #[allow(unused_mut)]
@@ -157,11 +174,7 @@ fn main() {
             .inner_size(1100.0, 720.0)
             .min_inner_size(420.0, 500.0)
             .user_agent(UA)
-            .initialization_script(format!(
-                "window.__LM_THEME={};{}",
-                load_theme(app.handle()),
-                include_str!("inject.js")
-            ));
+            .initialization_script(include_str!("inject.js"));
 
             // Menos procesos y sin servicios de red/actualización de fondo de WebView2.
             #[cfg(windows)]
@@ -187,6 +200,7 @@ fn main() {
                 fb = fb.additional_browser_args(BROWSER_ARGS);
             }
             fb.build()?;
+            set_float_scale(app.handle(), load_scale(app.handle()));
             set_skin(app.handle(), &load_skin(app.handle()));
 
             // Cerrar = ocultar a la bandeja; la música sigue sonando.
@@ -206,24 +220,28 @@ fn main() {
             let m_float = MenuItem::with_id(app, "float", "Mostrar / ocultar flotante", true, None::<&str>)?;
             let m_dog = MenuItem::with_id(app, "dog", "Flotante: perro", true, None::<&str>)?;
             let m_cat = MenuItem::with_id(app, "cat", "Flotante: gato", true, None::<&str>)?;
-            let m_theme = CheckMenuItem::with_id(app, "theme", "Diseño minimalista", true, load_theme(app.handle()), None::<&str>)?;
-            let m_theme_c = m_theme.clone();
+            let s50 = MenuItem::with_id(app, "sz50", "Muy pequeño (50%)", true, None::<&str>)?;
+            let s70 = MenuItem::with_id(app, "sz70", "Pequeño (70%)", true, None::<&str>)?;
+            let s100 = MenuItem::with_id(app, "sz100", "Normal (100%)", true, None::<&str>)?;
+            let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s50, &s70, &s100])?;
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_dog, &m_cat, &sep, &m_theme, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_dog, &m_cat, &sep, &m_size, &sep, &m_quit])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Lite Music")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(move |app, ev| match ev.id.as_ref() {
+                .on_menu_event(|app, ev| match ev.id.as_ref() {
                     "show" => show(app),
                     "pp" => js(app, "window.__lm&&window.__lm.playPause()"),
                     "next" => js(app, "window.__lm&&window.__lm.next()"),
                     "prev" => js(app, "window.__lm&&window.__lm.prev()"),
                     "float" => toggle_float(app),
-                    "theme" => set_theme(app, m_theme_c.is_checked().unwrap_or(true)),
+                    "sz50" => set_float_scale(app, 0.5),
+                    "sz70" => set_float_scale(app, 0.7),
+                    "sz100" => set_float_scale(app, 1.0),
                     "dog" => set_skin(app, "dog"),
                     "cat" => set_skin(app, "cat"),
                     "quit" => app.exit(0),
