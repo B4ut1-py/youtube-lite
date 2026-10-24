@@ -109,14 +109,26 @@ const SKINS = {
 };
 const PHONE = '#ff3b66', PHONE_S = '#b81c43', PHONE_L = '#ff8fa8', BAND = '#3d3d52', BAND_L = '#6a6a88', PINK = '#ff8fa3';
 
-function drawBody(skin) {
+// wave = fase de la animación del saludo (undefined = pose normal): la patita derecha se levanta y se mueve.
+function drawBody(skin, wave) {
   const c = document.getElementById('body').getContext('2d'), s = SKINS[skin];
   c.clearRect(0, 0, 48, 48);
   blob(c, 24, 46, 14, 10, s.fur, s.shade, null);
   ell(c, 24, 44, 6, 6, s.muzzle); ell(c, 25, 46, 5, 4, s.muzzleS); ell(c, 24, 44, 5, 5, s.muzzle);
-  [[16, 47], [32, 47]].forEach(([x, y]) => { blob(c, x, y, 4, 3, s.muzzle, s.muzzleS, null); });
-  // pelo del pecho
-  px(c, 22, 40, 1, 2, s.muzzleS); px(c, 26, 41, 1, 2, s.muzzleS);
+  blob(c, 16, 47, 4, 3, s.muzzle, s.muzzleS, null);
+  if (wave === undefined) blob(c, 32, 47, 4, 3, s.muzzle, s.muzzleS, null);
+  px(c, 22, 40, 1, 2, s.muzzleS); px(c, 26, 41, 1, 2, s.muzzleS);                       // pelo del pecho
+}
+// La patita que saluda se dibuja en la capa de efectos (encima de la cabeza y de las orejas).
+function drawWavePaw(skin, wave) {
+  const c = document.getElementById('fx').getContext('2d'), s = SKINS[skin];
+  c.clearRect(0, 0, 48, 48);
+  const hx = 41 + 3 * Math.sin(wave), hy = 37 - 1.2 * Math.abs(Math.cos(wave));
+  const link = (r, col) => { for (let i = 0; i <= 10; i++) ell(c, 31 + (hx - 31) * i / 10, 45 + (hy - 45) * i / 10, r, r, col); };
+  link(3.9, DARK); link(3, s.fur);                                                      // brazo
+  blob(c, hx, hy, 3.9, 3.5, s.muzzle, s.muzzleS, null);                                 // patita
+  const x = Math.round(hx), y = Math.round(hy);
+  px(c, x - 2, y, 1, 1, PINK); px(c, x, y, 1, 1, PINK); px(c, x + 1, y, 1, 1, PINK); px(c, x - 1, y + 1, 2, 1, PINK);
 }
 function drawHead(skin, sleeping, c0, blink) {
   const c = c0 || document.getElementById('head').getContext('2d'), s = SKINS[skin];
@@ -242,6 +254,11 @@ function scheduleBlink() {
   }), 2500 + Math.random() * 3500);
 }
 scheduleBlink();
+// Saludo ocasional con la patita (cada 25-55 s, solo mientras suena y sin otra reacción en curso).
+function scheduleWave() {
+  setTimeout(() => { if (playing && kind === 'animal' && !fx) trigger('wave'); scheduleWave(); }, 25000 + Math.random() * 30000);
+}
+scheduleWave();
 let ppDrawn = false, draggingVol = false, shownTitle = null;
 // Si el título no cabe, se desplaza suavemente de un lado a otro en vez de cortarse.
 function setTitle(text) {
@@ -262,15 +279,16 @@ async function poll() {
 
 /* ---------- Animación del animal: vaivén relajado, patitas firmes + reacciones ---------- */
 const head = document.getElementById('head'), bodyEl = document.getElementById('body'), fxC = document.getElementById('fx').getContext('2d');
-let t = 0, last = performance.now(), amp = 0, slump = 0, raf = 0, fx = null;
+let lastWave = 0, t = 0, last = performance.now(), amp = 0, slump = 0, raf = 0, fx = null;
 const PERIOD = 3.2;                       // segundos por vaivén completo (lento = relajado)
-const FX_DUR = { pause: 3, resume: 0.7, song: 1.4, next: 0.7, prev: 0.7 };
+const FX_DUR = { wave: 2.8, pause: 3, resume: 0.7, song: 1.4, next: 0.7, prev: 0.7 };
 // Reacciones a las acciones del usuario: pausa, reanudar, canción nueva, siguiente, anterior.
-function trigger(name) { if (kind !== 'animal') return; fx = { name, t0: performance.now() / 1000 }; kick(); }
+function trigger(name) { if (kind !== 'animal') return; if (fx && fx.name === 'wave') drawBody(skin); fx = { name, t0: performance.now() / 1000 }; kick(); }
 function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
 const glyphZ = (c, x, y, s) => { c.fillStyle = '#fff'; c.fillRect(x, y, s, 1); c.fillRect(x, y + s - 1, s, 1); for (let i = 0; i < s; i++) c.fillRect(x + s - 1 - i, y + i, 1, 1); };
 const glyphNote = (c, x, y) => { c.fillStyle = '#000'; c.fillRect(x + 2, y - 1, 1, 6); c.fillRect(x + 2, y - 1, 4, 2); c.fillRect(x - 1, y + 3, 4, 3); c.fillStyle = '#fff'; c.fillRect(x + 3, y, 1, 5); c.fillRect(x + 3, y, 3, 1); c.fillRect(x, y + 4, 3, 2); };
 function drawFx(u, name) {
+  if (name === 'wave') return;                                       // la patita se dibuja aparte
   fxC.clearRect(0, 0, 48, 48);
   if (name === 'pause') {
     for (let i = 0; i < 3; i++) {
@@ -297,13 +315,17 @@ function frame(now) {
   let rx = 0, rrot = 0, hop = 0;
   if (fx) {
     const u = (now / 1000 - fx.t0) / FX_DUR[fx.name];
-    if (u >= 1) { fx = null; fxC.clearRect(0, 0, 48, 48); }
+    if (u >= 1) { if (fx.name === 'wave') drawBody(skin); fx = null; fxC.clearRect(0, 0, 48, 48); }
     else {
       const b = Math.sin(Math.PI * u);
       if (fx.name === 'next') { rx = 9 * b; rrot = 10 * b; }
       else if (fx.name === 'prev') { rx = -9 * b; rrot = -10 * b; }
       else if (fx.name === 'song') { rrot = 13 * Math.sin(Math.PI * Math.min(1, u * 1.6)); }
       else if (fx.name === 'resume') { hop = 12 * b; }
+      else if (fx.name === 'wave') {                                     // saludo con la patita
+        rrot = 5 * Math.min(1, b * 2.5); rx = 2 * Math.min(1, b * 2.5);
+        if (now - lastWave > 90) { lastWave = now; drawBody(skin, 0); drawWavePaw(skin, u * Math.PI * 2 * 4); }
+      }
       drawFx(u, fx.name);
     }
   }
