@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::{fs, sync::Mutex};
+
+use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -9,6 +12,88 @@ use tauri::{
 const HOME_URL: &str = "https://music.youtube.com";
 // User-Agent de Chrome: evita que Google bloquee el inicio de sesión por "navegador no seguro".
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
+// Los dos webviews (YouTube y flotante) comparten entorno WebView2: los argumentos deben ser idénticos.
+#[cfg(windows)]
+const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate \
+     --disable-background-networking --disable-component-update --disable-gpu \
+     --disable-sync --renderer-process-limit=1 --enable-low-end-device-mode";
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+struct PlayerState {
+    title: String,
+    artist: String,
+    playing: bool,
+    pos: f64,
+    dur: f64,
+    #[serde(default)]
+    skin: String,
+}
+
+struct AppState {
+    player: Mutex<PlayerState>,
+    float_visible: Mutex<bool>,
+}
+
+fn skin_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("skin.txt"))
+}
+
+fn load_skin(app: &AppHandle) -> String {
+    skin_path(app)
+        .and_then(|p| fs::read_to_string(p).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| s == "dog" || s == "cat")
+        .unwrap_or_else(|| "dog".into())
+}
+
+fn set_skin(app: &AppHandle, skin: &str) {
+    app.state::<AppState>().player.lock().unwrap().skin = skin.into();
+    if let Some(p) = skin_path(app) {
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        let _ = fs::write(p, skin);
+    }
+}
+
+fn toggle_float(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("float") {
+        let visible = w.is_visible().unwrap_or(true);
+        let _ = if visible { w.hide() } else { w.show() };
+        *app.state::<AppState>().float_visible.lock().unwrap() = !visible;
+    }
+}
+
+// La página de YouTube Music informa de la canción; devuelve si el flotante está visible
+// (la página usa eso para consultar con menos frecuencia cuando no hace falta).
+#[tauri::command]
+fn report_state(state: tauri::State<AppState>, title: String, artist: String, playing: bool, pos: f64, dur: f64) -> bool {
+    let mut p = state.player.lock().unwrap();
+    p.title = title;
+    p.artist = artist;
+    p.playing = playing;
+    p.pos = pos;
+    p.dur = dur;
+    *state.float_visible.lock().unwrap()
+}
+
+#[tauri::command]
+fn get_state(state: tauri::State<AppState>) -> PlayerState {
+    state.player.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn control(app: AppHandle, action: String, value: Option<f64>) {
+    let code = match action.as_str() {
+        "playpause" => "window.__lm&&window.__lm.playPause()".to_string(),
+        "next" => "window.__lm&&window.__lm.next()".to_string(),
+        "prev" => "window.__lm&&window.__lm.prev()".to_string(),
+        "seek" => format!("window.__lm&&window.__lm.seek({})", value.unwrap_or(0.0).clamp(0.0, 1.0)),
+        _ => return,
+    };
+    js(&app, &code);
+}
 
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
@@ -36,6 +121,8 @@ fn js(app: &AppHandle, code: &str) {
 
 fn main() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![report_state, get_state, control])
+        .manage(AppState { player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
         .setup(|app| {
             #[allow(unused_mut)]
@@ -53,14 +140,28 @@ fn main() {
             // Menos procesos y sin servicios de red/actualización de fondo de WebView2.
             #[cfg(windows)]
             {
-                builder = builder.additional_browser_args(
-                    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate \
-                     --disable-background-networking --disable-component-update --disable-gpu \
-                     --disable-sync --renderer-process-limit=1 --enable-low-end-device-mode",
-                );
+                builder = builder.additional_browser_args(BROWSER_ARGS);
             }
 
             let window = builder.build()?;
+
+            // Reproductor flotante: sin marco, sin fondo, siempre encima.
+            #[allow(unused_mut)]
+            let mut fb = WebviewWindowBuilder::new(app, "float", WebviewUrl::App("float.html".into()))
+                .title("Lite Music Float")
+                .inner_size(340.0, 350.0)
+                .decorations(false)
+                .transparent(true)
+                .shadow(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false);
+            #[cfg(windows)]
+            {
+                fb = fb.additional_browser_args(BROWSER_ARGS);
+            }
+            fb.build()?;
+            set_skin(app.handle(), &load_skin(app.handle()));
 
             // Cerrar = ocultar a la bandeja; la música sigue sonando.
             let w = window.clone();
@@ -76,9 +177,12 @@ fn main() {
             let m_pp = MenuItem::with_id(app, "pp", "Reproducir / Pausar", true, None::<&str>)?;
             let m_next = MenuItem::with_id(app, "next", "Siguiente", true, None::<&str>)?;
             let m_prev = MenuItem::with_id(app, "prev", "Anterior", true, None::<&str>)?;
+            let m_float = MenuItem::with_id(app, "float", "Mostrar / ocultar flotante", true, None::<&str>)?;
+            let m_dog = MenuItem::with_id(app, "dog", "Flotante: perro", true, None::<&str>)?;
+            let m_cat = MenuItem::with_id(app, "cat", "Flotante: gato", true, None::<&str>)?;
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_dog, &m_cat, &sep, &m_quit])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
@@ -90,6 +194,9 @@ fn main() {
                     "pp" => js(app, "window.__lm&&window.__lm.playPause()"),
                     "next" => js(app, "window.__lm&&window.__lm.next()"),
                     "prev" => js(app, "window.__lm&&window.__lm.prev()"),
+                    "float" => toggle_float(app),
+                    "dog" => set_skin(app, "dog"),
+                    "cat" => set_skin(app, "cat"),
                     "quit" => app.exit(0),
                     _ => {}
                 })

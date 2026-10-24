@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "youtube-page",
+  "description": "La página de YouTube Music solo puede enviar el estado de reproducción.",
+  "windows": ["main"],
+  "remote": { "urls": ["https://music.youtube.com/*"] },
+  "permissions": ["allow-report-state"]
+}

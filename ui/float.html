@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Lite Music Float</title>
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; }
+  body { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center;
+         font: 700 12px "Courier New", monospace; color: #fff; cursor: default; }
+  #wrap { width: 320px; }
+  #row { display: flex; align-items: center; justify-content: space-between; }
+  #stage { position: relative; width: 192px; height: 192px; cursor: pointer; }
+  #stage canvas { position: absolute; left: 0; top: 0; width: 192px; height: 192px; image-rendering: pixelated; }
+  #head { transform-origin: 50% 80%; will-change: transform; }
+  .btn { width: 40px; height: 40px; padding: 0; border: 0; background: transparent; cursor: pointer;
+         image-rendering: pixelated; filter: drop-shadow(0 0 2px #000a); transition: transform .1s; }
+  .btn:hover { transform: scale(1.15); } .btn:active { transform: scale(.92); }
+  .btn canvas { width: 40px; height: 40px; image-rendering: pixelated; display: block; }
+  #bar { margin: 10px 12px 0; height: 8px; position: relative; cursor: pointer;
+         background: #0008; box-shadow: 0 0 0 2px #000a; image-rendering: pixelated; }
+  #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #ff2d55; transition: width .5s linear; }
+  #title { margin: 8px 6px 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+           text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000, 0 0 4px #000; letter-spacing: .3px; }
+  #artist { margin: 1px 6px 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            font-size: 10px; opacity: .85;
+            text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000, 0 0 4px #000; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="row">
+    <button class="btn" id="prev" title="Anterior"><canvas width="11" height="11"></canvas></button>
+    <div id="stage" title="Clic: pausar / reanudar. Arrastra para mover.">
+      <canvas id="body" width="48" height="48"></canvas>
+      <canvas id="head" width="48" height="48"></canvas>
+    </div>
+    <button class="btn" id="next" title="Siguiente"><canvas width="11" height="11"></canvas></button>
+  </div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="title">Lite Music</div>
+  <div id="artist"></div>
+</div>
+<script>
+const inv = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
+
+/* ---------- Pixel art (rejilla 48x48) ---------- */
+const DARK = '#2a2233';
+const px = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+const ell = (c, cx, cy, rx, ry, col) => {
+  c.fillStyle = col;
+  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
+    for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++)
+      if (((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2 <= 1) c.fillRect(x, y, 1, 1);
+};
+// Elipse con contorno, sombra inferior-derecha y luz superior-izquierda
+const blob = (c, cx, cy, rx, ry, col, shade, light) => {
+  ell(c, cx, cy, rx + 1, ry + 1, DARK);
+  ell(c, cx, cy, rx, ry, shade);
+  ell(c, cx - .7, cy - .7, rx - 1.2, ry - 1.2, col);
+  if (light) ell(c, cx - rx * .35, cy - ry * .45, rx * .35, ry * .22, light);
+};
+const ring = (c, cx, cy, orx, ory, irx, iry, col, maxY, only) => {
+  c.fillStyle = col;
+  for (let y = Math.floor(cy - ory); y <= maxY; y++)
+    for (let x = Math.floor(cx - orx); x <= Math.ceil(cx + orx); x++) {
+      const o = ((x + .5 - cx) / orx) ** 2 + ((y + .5 - cy) / ory) ** 2;
+      const i = ((x + .5 - cx) / irx) ** 2 + ((y + .5 - cy) / iry) ** 2;
+      if (o <= 1 && i >= 1 && (!only || only(x, y))) c.fillRect(x, y, 1, 1);
+    }
+};
+const tri = (c, p, col) => {
+  const [x1, y1, x2, y2, x3, y3] = p;
+  const d = (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
+  c.fillStyle = col;
+  for (let y = Math.min(y1, y2, y3); y <= Math.max(y1, y2, y3); y++)
+    for (let x = Math.min(x1, x2, x3); x <= Math.max(x1, x2, x3); x++) {
+      const a = ((x - x3) * (y2 - y3) - (x2 - x3) * (y - y3)) / d;
+      const b = ((x1 - x3) * (y - y3) - (x - x3) * (y1 - y3)) / d;
+      if (a >= 0 && b >= 0 && a + b <= 1) c.fillRect(x, y, 1, 1);
+    }
+};
+const SKINS = {
+  dog: { fur: '#e0a867', shade: '#b97f45', ear: '#7b4a28', earS: '#5e3519', muzzle: '#fbf0dc', muzzleS: '#e3cfae' },
+  cat: { fur: '#a9b2c4', shade: '#7e889d', ear: '#7e889d', earS: '#5f6a80', muzzle: '#f1f4fa', muzzleS: '#cfd6e3' },
+};
+const PHONE = '#ff3b66', PHONE_S = '#b81c43', PHONE_L = '#ff8fa8', BAND = '#3d3d52', BAND_L = '#6a6a88', PINK = '#ff8fa3';
+
+function drawBody(skin) {
+  const c = document.getElementById('body').getContext('2d'), s = SKINS[skin];
+  c.clearRect(0, 0, 48, 48);
+  blob(c, 24, 46, 14, 10, s.fur, s.shade, null);
+  ell(c, 24, 44, 6, 6, s.muzzle); ell(c, 25, 46, 5, 4, s.muzzleS); ell(c, 24, 44, 5, 5, s.muzzle);
+  [[16, 47], [32, 47]].forEach(([x, y]) => { blob(c, x, y, 4, 3, s.muzzle, s.muzzleS, null); });
+  // pelo del pecho
+  px(c, 22, 40, 1, 2, s.muzzleS); px(c, 26, 41, 1, 2, s.muzzleS);
+}
+function drawHead(skin, sleeping, c0) {
+  const c = c0 || document.getElementById('head').getContext('2d'), s = SKINS[skin];
+  c.clearRect(0, 0, 48, 48);
+  // diadema: anillo grueso con contorno, sombra y brillo (solo la mitad superior)
+  ring(c, 24, 25, 21.5, 21, 16.5, 16, DARK, 25);
+  ring(c, 24, 25, 20.5, 20, 17.5, 17, BAND, 25);
+  ring(c, 24, 25, 20.5, 20, 19, 18.5, BAND_L, 25, (x, y) => x + y < 36);
+  if (skin === 'dog') {
+    blob(c, 9, 26, 5.5, 12, s.ear, s.earS, null); blob(c, 39, 26, 5.5, 12, s.ear, s.earS, null); // orejas caídas
+    blob(c, 24, 22, 15, 13.5, s.fur, s.shade, '#f2c58c');                                         // cabeza
+    px(c, 23, 9, 2, 8, s.muzzle); px(c, 22, 14, 4, 3, s.muzzle);                                  // franja
+    px(c, 12, 14, 4, 1, s.ear); px(c, 32, 14, 4, 1, s.ear);                                       // cejas
+    blob(c, 24, 29, 8, 5.5, s.muzzle, s.muzzleS, null);                                           // hocico
+    ell(c, 24, 25, 3.5, 2.5, DARK); px(c, 22, 24, 2, 1, '#8a7fa0');                               // nariz + brillo
+    if (!sleeping) {                                                                               // lengua
+      px(c, 21, 31, 7, 6, DARK); px(c, 22, 37, 5, 1, DARK);
+      px(c, 22, 31, 5, 5, PINK); px(c, 23, 36, 3, 1, PINK); px(c, 24, 32, 1, 4, '#d4607a');
+      px(c, 22, 31, 1, 1, '#ffc2cf');
+    }
+    px(c, 24, 27, 1, 3, DARK); px(c, 21, 30, 3, 1, DARK); px(c, 25, 30, 3, 1, DARK);             // boca
+    px(c, 20, 29, 1, 1, DARK); px(c, 28, 29, 1, 1, DARK);
+    ell(c, 12, 26, 2.2, 1.5, '#f2907f'); ell(c, 36, 26, 2.2, 1.5, '#f2907f');                    // rubor
+    [[17, 19], [31, 19]].forEach(([x, y]) => {                                                     // ojos
+      if (sleeping) { px(c, x - 2, y + 1, 5, 1, DARK); px(c, x - 3, y, 1, 1, DARK); px(c, x + 3, y, 1, 1, DARK); }
+      else { ell(c, x, y, 2.6, 3.4, DARK); px(c, x - 1, y - 2, 2, 2, '#fff'); px(c, x + 1, y + 1, 1, 1, '#fff'); }
+    });
+  } else {
+    tri(c, [8, 17, 12, 2, 22, 11], DARK); tri(c, [9, 16, 12, 4, 20, 11], s.ear); tri(c, [11, 14, 13, 7, 17, 11], PINK);   // orejas
+    tri(c, [40, 17, 36, 2, 26, 11], DARK); tri(c, [39, 16, 36, 4, 28, 11], s.ear); tri(c, [37, 14, 35, 7, 31, 11], PINK);
+    blob(c, 24, 24, 16.5, 12.5, s.fur, s.shade, '#c4cbd9');                                      // cabeza
+    px(c, 23, 12, 2, 4, s.earS); px(c, 19, 13, 1, 3, s.earS); px(c, 28, 13, 1, 3, s.earS);       // rayas frente
+    px(c, 9, 22, 3, 1, s.earS); px(c, 9, 25, 3, 1, s.earS); px(c, 36, 22, 3, 1, s.earS); px(c, 36, 25, 3, 1, s.earS);
+    blob(c, 24, 30, 6.5, 4.5, s.muzzle, s.muzzleS, null);                                        // hocico
+    tri(c, [22, 27, 26, 27, 24, 29], PINK);                                                      // nariz
+    px(c, 24, 29, 1, 2, DARK); px(c, 21, 31, 3, 1, DARK); px(c, 25, 31, 3, 1, DARK);            // boca
+    px(c, 22, 32, 1, 1, DARK); px(c, 27, 32, 1, 1, DARK);
+    [[11, 30], [10, 32], [37, 30], [38, 32]].forEach(([x, y], i) => px(c, i < 2 ? x - 5 : x, y, 5, 1, '#e8edf7')); // bigotes
+    ell(c, 13, 28, 2.2, 1.4, '#f2a3b4'); ell(c, 35, 28, 2.2, 1.4, '#f2a3b4');
+    [[17, 21], [31, 21]].forEach(([x, y]) => {                                                     // ojos verdes
+      if (sleeping) { px(c, x - 2, y + 1, 5, 1, DARK); px(c, x - 3, y, 1, 1, DARK); px(c, x + 3, y, 1, 1, DARK); }
+      else { ell(c, x, y, 3.2, 3.6, '#5ec27a'); ell(c, x, y, 3.2, 3.6, '#5ec27a'); px(c, x, y - 3, 1, 7, DARK);
+             px(c, x - 1, y - 2, 2, 2, '#fff'); }
+    });
+  }
+  // copas: carcasa, aro interior, almohadilla y bisagra con la diadema
+  [[6.5, 1], [41.5, -1]].forEach(([cx, d]) => {
+    px(c, cx - 2, 15, 4, 3, DARK); px(c, cx - 1, 15, 2, 2, BAND);                                 // bisagra
+    blob(c, cx, 26, 5.5, 9, PHONE, PHONE_S, PHONE_L);                                              // carcasa
+    ell(c, cx - d * .3, 26, 3.2, 5.2, PHONE_S); ell(c, cx - d * .3 - .4, 25.6, 2.6, 4.6, PHONE);   // aro
+    px(c, cx - 2, 21, 1, 2, '#ffd0db');                                                            // brillo
+    ell(c, cx + d * 3.6, 26, 1.6, 6.5, '#2a2233'); ell(c, cx + d * 3.3, 26, .9, 5.5, '#4a4262');    // almohadilla
+  });
+}
+function drawIcon(btn, dir) {
+  const c = btn.querySelector('canvas').getContext('2d');
+  c.clearRect(0, 0, 11, 11);
+  const shape = (ox, oy, col) => {
+    c.fillStyle = col;
+    for (let i = 0; i < 4; i++) {
+      const x = dir > 0 ? 2 + i : 7 - i;
+      c.fillRect(x + ox, 2 + i + oy, 1, 7 - 2 * i);
+    }
+    c.fillRect((dir > 0 ? 7 : 2) + ox, 2 + oy, 1, 7);
+  };
+  [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ox, oy]) => shape(ox, oy, '#000'));
+  shape(0, 0, '#fff');
+}
+
+/* ---------- Estado ---------- */
+let skin = '', playing = false, sleeping = null;
+function render(st) {
+  if (st.skin !== skin) { skin = st.skin; drawBody(skin); sleeping = null; }
+  playing = !!st.playing;
+  if (sleeping !== !playing) { sleeping = !playing; drawHead(skin, sleeping); }
+  document.getElementById('title').textContent = st.title || 'Lite Music';
+  document.getElementById('artist').textContent = st.artist || '';
+  const f = st.dur > 0 ? Math.min(100, (st.pos / st.dur) * 100) : 0;
+  document.getElementById('fill').style.width = f + '%';
+}
+async function poll() {
+  try { render(await inv('get_state')); } catch (_) {}
+}
+
+/* ---------- Animación: balanceo suave de la cabeza ---------- */
+const head = document.getElementById('head');
+let t = 0, last = performance.now(), amp = 0;
+function frame(now) {
+  const dt = (now - last) / 1000; last = now;
+  amp += ((playing ? 1 : 0) - amp) * Math.min(1, dt * 4);            // acelera / frena suave
+  if (playing) t += dt;
+  const s = Math.sin(t * 2 * Math.PI / 1.6);
+  head.style.transform = `translateX(${(s * 6 * amp).toFixed(2)}px) rotate(${(s * 7 * amp).toFixed(2)}deg)`;
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Interacción ---------- */
+const stage = document.getElementById('stage');
+let down = null;
+document.body.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || e.target.closest('.btn') || e.target.closest('#bar')) return;
+  down = { x: e.screenX, y: e.screenY, onStage: !!e.target.closest('#stage'), moved: false };
+});
+document.body.addEventListener('mousemove', (e) => {
+  if (down && !down.moved && Math.hypot(e.screenX - down.x, e.screenY - down.y) > 4) {
+    down.moved = true; inv('plugin:window|start_dragging').catch(() => {});
+  }
+});
+document.body.addEventListener('mouseup', () => {
+  if (down && down.onStage && !down.moved) inv('control', { action: 'playpause' });
+  down = null;
+});
+document.getElementById('prev').onclick = () => inv('control', { action: 'prev' });
+document.getElementById('next').onclick = () => inv('control', { action: 'next' });
+document.getElementById('bar').onclick = (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  inv('control', { action: 'seek', value: (e.clientX - r.left) / r.width });
+};
+
+drawIcon(document.getElementById('prev'), -1);
+drawIcon(document.getElementById('next'), 1);
+if (window.__TAURI_INTERNALS__) { poll(); setInterval(poll, 500); }
+requestAnimationFrame(frame);
+window.__render = render; // para pruebas
+</script>
+</body>
+</html>

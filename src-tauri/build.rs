@@ -1,3 +1,8 @@
 fn main() {
-    tauri_build::build()
+    tauri_build::try_build(
+        tauri_build::Attributes::new().app_manifest(
+            tauri_build::AppManifest::new().commands(&["report_state", "get_state", "control"]),
+        ),
+    )
+    .expect("error al generar la configuración de Tauri");
 }
