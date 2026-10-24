@@ -50,7 +50,7 @@ function personHead(c, o) {
   else { [20, 27].forEach(x => { px(c, x + ex, 21, 2, 3, DARK); px(c, x + ex, 21, 1, 1, '#fff'); }); }
   const m = o.mouth || 'smile';
   if (m === 'open') { px(c, 22, 26, 5, 3, DARK); px(c, 23, 28, 3, 1, '#ff8fa3'); }
-  else if (m === 'yawn') { px(c, 22, 25, 5, 5, DARK); px(c, 23, 28, 3, 2, '#ff8fa3'); }
+  else if (m === 'yawn') { ell(c, 24.5, 28, 3, 3.2, DARK); ell(c, 24.5, 29.4, 1.8, 1.4, '#ff8fa3'); }
   else if (m === 'sad') { px(c, 22, 28, 5, 1, '#b5555a'); px(c, 21, 29, 1, 1, '#b5555a'); px(c, 27, 29, 1, 1, '#b5555a'); }
   else if (m === 'sip') { px(c, 23, 27, 3, 1, '#b5555a'); }
   else { px(c, 22, 27, 5, 1, '#b5555a'); px(c, 21, 26, 1, 1, '#b5555a'); px(c, 27, 26, 1, 1, '#b5555a'); }
@@ -77,7 +77,7 @@ const SCENES = {
   trabajando(c, t, a, paused) {
     const k = Math.floor(t * 6) % 2, h = a ? hold(a.u) : 0;
     const typing = [[19 + k, 43 - k], [29 - k, 42 + k]];
-    const o = { shirt: '#4a7bd0', shirtS: '#365ba3', hair: '#4a3020', hood: '#4a7bd0', hoodS: '#365ba3', glasses: 1, glow: '#cfe9ff', phones: 1, eyes: paused ? 'closed' : (t % 4.6 < .12 ? 'closed' : 'open'), dy: paused ? 1 : 0 };
+    const o = { shirt: '#4a7bd0', shirtS: '#365ba3', hair: '#4a3020', hood: '#4a7bd0', hoodS: '#365ba3', phones: 1, eyes: paused ? 'closed' : (t % 4.6 < .12 ? 'closed' : 'open'), dy: paused ? 1 : 0 };
     o.L = typing[0]; o.R = typing[1];
     let mugX = 3, mugY = 38;
     if (a && a.name === 'cafe') {
@@ -145,7 +145,7 @@ const SCENES = {
       if (i > step - N) candles.push({ o: o0, c: price });
     }
     if (up) candles[N - 1] = { o: 8, c: 16 - (1 - h) * 6 }; if (down) candles[N - 1] = { o: 12, c: 12 - 8 * h };
-    const o = { shirt: '#2f6f5e', shirtS: '#1f4f43', hair: '#6b3b1b', hood: '#2f6f5e', hoodS: '#1f4f43', glasses: 1, glow: '#9ff0b8', eyes: paused ? 'closed' : (t % 5 < .12 ? 'closed' : 'open'), eyeDx: 1,
+    const o = { shirt: '#2f6f5e', shirtS: '#1f4f43', hair: '#6b3b1b', hood: '#2f6f5e', hoodS: '#1f4f43', eyes: paused ? 'closed' : (t % 5 < .12 ? 'closed' : 'open'), eyeDx: 1,
                 L: [18, 43], R: [28 + (Math.floor(t * 2) % 2), 43] };
     if (up) { o.L = [lerp(18, 10, h), lerp(43, 17, h)]; o.R = [lerp(28, 35, h), lerp(43, 17, h)]; o.eyes = 'happy'; o.mouth = 'open'; o.dy = -Math.round(h); }
     if (down) { o.R = [lerp(28, 25, h), lerp(43, 12, h)]; o.eyes = h > .5 ? 'sad' : o.eyes; o.mouth = h > .5 ? 'sad' : 'smile'; o.dy = Math.round(h); }
@@ -171,7 +171,7 @@ const SCENES = {
   descansando(c, t, a, paused) {
     const h = a ? hold(a.u) : 0, beat = Math.floor(t * 1.6) % 2, br = Math.floor(t * 0.9) % 2;
     ell(c, 24, 25, 15, 15, '#cdb8ff');
-    const o = { shirt: '#6b7bd6', shirtS: '#4a57a8', hair: '#3a2418', hood: '#6b7bd6', hoodS: '#4a57a8', glasses: 1, glow: '#ffe9a8', phones: 1, eyes: 'closed', blanket: 1, bodyDy: paused ? 1 : br,
+    const o = { shirt: '#6b7bd6', shirtS: '#4a57a8', hair: '#3a2418', hood: '#6b7bd6', hoodS: '#4a57a8', phones: 1, eyes: 'closed', blanket: 1, bodyDy: paused ? 1 : br,
                 dy: paused ? 1 : (beat && !a ? 1 : 0), mouth: 'smile', L: [30, 41], R: [20, 41] };
     let mug = [31, 36];
     if (a && a.name === 'sorbo') { o.R = [lerp(30, 24, h), lerp(41, 30, h)]; mug = [lerp(31, o.R[0] - 2, smooth(a.u / .2)), lerp(36, o.R[1] - 4, smooth(a.u / .2))]; o.dy = -Math.round(h); o.mouth = h > .6 ? 'sip' : 'smile'; }
@@ -188,7 +188,7 @@ const SCENES = {
     const k = Math.floor(t * 2.5) % 2, h = a ? hold(a.u) : 0, cols = ['#ff4d6d', '#ffd966', '#5ef28a', '#7fe9ff', '#c08cff'];
     const jump = a && a.name === 'salto' ? Math.round(4 * Math.abs(Math.sin(a.u * Math.PI * 2.5)) * (a.u < .85 ? 1 : 0)) : 0;
     const sway = paused ? 0 : (k ? 1 : -1);
-    const o = { shirt: '#ff6fa5', shirtS: '#c8487d', hair: '#2b1b3a', glasses: 1, glow: '#ffb3d1', eyes: 'happy', mouth: 'open', hat: 1, dx: sway, dy: -jump, bodyDy: -jump, bodyDx: sway,
+    const o = { shirt: '#ff6fa5', shirtS: '#c8487d', hair: '#2b1b3a', eyes: 'happy', mouth: 'open', hat: 1, dx: sway, dy: -jump, bodyDy: -jump, bodyDx: sway,
                 L: k ? [6, 14] : [9, 42], R: k ? [39, 42] : [42, 14] };
     if (paused) { o.L = [10, 44]; o.R = [38, 44]; o.mouth = 'smile'; o.eyes = 'closed'; }
     if (a && (a.name === 'confeti' || a.name === 'salto')) { o.L = [lerp(o.L[0], 7, h), lerp(o.L[1], 12 - jump, h)]; o.R = [lerp(o.R[0], 41, h), lerp(o.R[1], 12 - jump, h)]; }
