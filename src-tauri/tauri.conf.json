@@ -3,14 +3,36 @@
   "productName": "Lite Music",
   "version": "0.1.0",
   "identifier": "app.litemusic.player",
-  "build": { "frontendDist": "../ui" },
+  "build": {
+    "frontendDist": "../ui"
+  },
   "app": {
     "windows": [],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"]
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU0QzRGMjZFMDcyOEIzNTkKUldSWnN5Z0hidkxFNUVDSnZXa0dxS25hNEU4WGV6eXZWOEdQemYzbTlZcm1iQkV0MTJiclNOSHQK",
+      "endpoints": [
+        "https://github.com/clientesindexar-ctrl/youtube-lite/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

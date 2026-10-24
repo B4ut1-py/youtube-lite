@@ -3,6 +3,7 @@
 use std::{fs, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
+use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -140,6 +141,38 @@ fn control(app: AppHandle, action: String, value: Option<f64>) {
     js(&app, &code);
 }
 
+// Busca una versión nueva en GitHub; si hay, la descarga e instala (en Windows el instalador
+// cierra la app, actualiza y la vuelve a abrir). "manual" solo cambia el aviso del tooltip.
+async fn check_update(app: AppHandle, manual: bool) {
+    let say = |msg: &str| {
+        if let Some(t) = app.tray_by_id("main") {
+            let _ = t.set_tooltip(Some(msg));
+        }
+    };
+    let Ok(updater) = app.updater() else { return };
+    match updater.check().await {
+        Ok(Some(update)) => {
+            say(&format!("Lite Music: instalando versión {}…", update.version));
+            if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
+                #[cfg(not(windows))]
+                app.restart();
+            } else {
+                say("Lite Music: no se pudo actualizar");
+            }
+        }
+        Ok(None) => {
+            if manual {
+                say("Lite Music: ya tienes la última versión");
+            }
+        }
+        Err(_) => {
+            if manual {
+                say("Lite Music: no se pudo buscar actualizaciones");
+            }
+        }
+    }
+}
+
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
 }
@@ -164,10 +197,15 @@ fn js(app: &AppHandle, code: &str) {
     }
 }
 
+async fn tokio_sleep(secs: u64) {
+    let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_secs(secs))).await;
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float])
         .manage(AppState { scale: Mutex::new(1.0), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
         .setup(|app| {
@@ -240,11 +278,12 @@ fn main() {
             let s70 = MenuItem::with_id(app, "sz70", "Pequeño (70%)", true, None::<&str>)?;
             let s100 = MenuItem::with_id(app, "sz100", "Normal (100%)", true, None::<&str>)?;
             let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s50, &s70, &s100])?;
+            let m_upd = MenuItem::with_id(app, "upd", "Buscar actualizaciones", true, None::<&str>)?;
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &sep, &m_auto, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &sep, &m_auto, &m_upd, &sep, &m_quit])?;
 
-            TrayIconBuilder::new()
+            TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Lite Music")
                 .menu(&menu)
@@ -262,6 +301,10 @@ fn main() {
                     "cat" => set_skin(app, "cat"),
                     "cover" => set_skin(app, "cover"),
                     "none" => set_skin(app, "none"),
+                    "upd" => {
+                        let a = app.clone();
+                        tauri::async_runtime::spawn(check_update(a, true));
+                    }
                     "auto" => {
                         let al = app.autolaunch();
                         let _ = if m_auto_c.is_checked().unwrap_or(false) { al.enable() } else { al.disable() };
@@ -280,6 +323,13 @@ fn main() {
                     }
                 })
                 .build(app)?;
+
+            // Actualización automática al arrancar (tras unos segundos, para no competir con la carga).
+            let a = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio_sleep(8).await;
+                check_update(a, false).await;
+            });
 
             Ok(())
         })
