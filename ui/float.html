@@ -20,13 +20,15 @@
          background: #0008; box-shadow: 0 0 0 2px #000a; image-rendering: pixelated; }
   #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #ff2d55; transition: width .5s linear; }
   #pp { display: none; }
-  body.skin-none #stage { display: none; } body.skin-none #pp { display: block; }
-  body.skin-none #row { justify-content: center; gap: 14px; margin: 6px 0; }
   #cover { display: none; position: absolute; left: 10px; top: 10px; width: 172px; height: 172px; object-fit: cover;
            border-radius: 14px; box-shadow: 0 0 0 2px #000c, 0 6px 14px #0009; transition: filter .3s, transform .3s; }
-  body.skin-cover #cover { display: block; } body.skin-cover canvas#body, body.skin-cover canvas#head { display: none; }
-  body.skin-cover.paused #cover { filter: brightness(.55) saturate(.7); transform: scale(.97); }
-  body.skin-dog #cover, body.skin-cat #cover { display: none; }
+  #scene, #fx { display: none; pointer-events: none; }
+  body.kind-mood #scene { display: block; } body.kind-animal #fx { display: block; } body.kind-mood #fx { display: none; }
+  body.kind-cover #cover { display: block; } body.kind-cover canvas#body, body.kind-cover canvas#head { display: none; }
+  body.kind-cover.paused #cover { filter: brightness(.55) saturate(.7); transform: scale(.97); }
+  body.kind-mood canvas#body, body.kind-mood canvas#head, body.kind-none canvas#body, body.kind-none canvas#head { display: none; }
+  body.kind-none #stage { display: none; } body.kind-none #pp { display: block; }
+  body.kind-none #row { justify-content: center; gap: 14px; margin: 6px 0; }
   #volrow { margin: 7px auto 0; width: 150px; display: flex; align-items: center; gap: 8px; }
   #vicon { width: 22px; height: 22px; image-rendering: pixelated; filter: drop-shadow(0 0 2px #000a); }
   #vbar { flex: 1; height: 6px; position: relative; cursor: pointer; background: #0008; box-shadow: 0 0 0 2px #000a; }
@@ -50,6 +52,8 @@
     <div id="stage" title="Clic: pausar / reanudar. Arrastra para mover. Rueda: cambiar tamaño.">
       <canvas id="body" width="48" height="48"></canvas>
       <canvas id="head" width="48" height="48"></canvas>
+      <canvas id="scene" width="48" height="48"></canvas>
+      <canvas id="fx" width="48" height="48"></canvas>
       <img id="cover" alt="">
     </div>
     <button class="btn" id="pp" title="Reproducir / pausar"><canvas width="11" height="11"></canvas></button>
@@ -186,21 +190,32 @@ const speakerShape = (c, ox, oy, col) => {
 };
 
 /* ---------- Estado ---------- */
-let skin = '', playing = false, sleeping = null;
+let skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '';
 let cover = '';
 function render(st) {
   if (st.skin !== skin) {
     skin = st.skin; sleeping = null;
-    document.body.classList.remove('skin-dog', 'skin-cat', 'skin-cover', 'skin-none');
-    document.body.classList.add('skin-' + skin);
-    if (skin === 'dog' || skin === 'cat') drawBody(skin);
+    document.body.className = document.body.className.replace(/\b(skin|kind)-\S+/g, '').trim();
+    kind = ['dog', 'cat'].includes(skin) ? 'animal' : (skin === 'cover' || skin === 'none') ? skin : 'mood';
+    document.body.classList.add('skin-' + skin, 'kind-' + kind);
+    if (kind === 'animal') drawBody(skin);
+    if (kind === 'mood') { mood = { mood: skin, action: null, next: 15 + Math.random() * 15 }; moodStart(); }
+    else moodStop();
+    kick();
   }
   const was = playing;
   playing = !!st.playing;
+  if (seen) {                                                      // reacciones del animal
+    if (was && !playing) trigger('pause');
+    else if (!was && playing) trigger('resume');
+    if (st.title && st.title !== lastTitle && lastTitle) trigger('song');
+  }
+  seen = true; if (st.title) lastTitle = st.title;
+  if (was !== playing) { kick(); if (kind === 'mood') drawMoodFrame(); }
   document.body.classList.toggle('paused', !playing);
   if (sleeping !== !playing) {
     sleeping = !playing;
-    if (skin === 'dog' || skin === 'cat') drawHead(skin, sleeping);
+    if (kind === 'animal') drawHead(skin, sleeping);
   }
   if (was !== playing || !ppDrawn) { drawGlyph(document.querySelector('#pp canvas'), playing ? pauseShape : playShape); ppDrawn = true; }
   const url = st.cover || '';
@@ -216,7 +231,7 @@ function render(st) {
 }
 // Parpadeo: cada 2.5-6 s mientras suena, cierra los ojos ~140 ms (a veces dos veces seguidas).
 function blinkOnce(done) {
-  if (!playing || !(skin === 'dog' || skin === 'cat')) return done();
+  if (!playing || kind !== 'animal') return done();
   drawHead(skin, false, null, true);
   setTimeout(() => { if (playing) drawHead(skin, false); done(); }, 140);
 }
@@ -245,25 +260,79 @@ async function poll() {
   try { render(await inv('get_state')); } catch (_) {}
 }
 
-/* ---------- Animación: vaivén relajado, patitas firmes ---------- */
-const head = document.getElementById('head'), bodyEl = document.getElementById('body');
-let t = 0, last = performance.now(), amp = 0;
+/* ---------- Animación del animal: vaivén relajado, patitas firmes + reacciones ---------- */
+const head = document.getElementById('head'), bodyEl = document.getElementById('body'), fxC = document.getElementById('fx').getContext('2d');
+let t = 0, last = performance.now(), amp = 0, slump = 0, raf = 0, fx = null;
 const PERIOD = 3.2;                       // segundos por vaivén completo (lento = relajado)
+const FX_DUR = { pause: 3, resume: 0.7, song: 1.4, next: 0.7, prev: 0.7 };
+// Reacciones a las acciones del usuario: pausa, reanudar, canción nueva, siguiente, anterior.
+function trigger(name) { if (kind !== 'animal') return; fx = { name, t0: performance.now() / 1000 }; kick(); }
+function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+const glyphZ = (c, x, y, s) => { c.fillStyle = '#fff'; c.fillRect(x, y, s, 1); c.fillRect(x, y + s - 1, s, 1); for (let i = 0; i < s; i++) c.fillRect(x + s - 1 - i, y + i, 1, 1); };
+const glyphNote = (c, x, y) => { c.fillStyle = '#000'; c.fillRect(x + 2, y - 1, 1, 6); c.fillRect(x + 2, y - 1, 4, 2); c.fillRect(x - 1, y + 3, 4, 3); c.fillStyle = '#fff'; c.fillRect(x + 3, y, 1, 5); c.fillRect(x + 3, y, 3, 1); c.fillRect(x, y + 4, 3, 2); };
+function drawFx(u, name) {
+  fxC.clearRect(0, 0, 48, 48);
+  if (name === 'pause') {
+    for (let i = 0; i < 3; i++) {
+      const age = (u * 3 - i * 0.55); if (age < 0 || age > 1.6) continue;
+      fxC.globalAlpha = Math.max(0, 1 - age / 1.6); glyphZ(fxC, Math.round(34 + age * 5 + i * 2), Math.round(10 - age * 9), 3 + i);
+    }
+  } else if (name === 'song') {
+    fxC.globalAlpha = 1 - u; glyphNote(fxC, 40, Math.round(10 - u * 9));
+  } else if (name === 'next' || name === 'prev') {
+    const d = name === 'next' ? 1 : -1; fxC.globalAlpha = 1 - u;
+    [0, 3, 6].forEach((dy, i) => { fxC.fillStyle = '#fff'; fxC.fillRect(24 + d * (14 + u * 7 + i), 16 + dy, 4 - i, 1); });
+  }
+  fxC.globalAlpha = 1;
+}
 function frame(now) {
+  raf = 0;
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   amp += ((playing ? 1 : 0) - amp) * Math.min(1, dt * 2.5);          // arranca y frena con suavidad
+  slump += ((playing ? 0 : 1) - slump) * Math.min(1, dt * 5);        // al pausar, la cabeza se relaja hacia abajo
   if (playing) t += dt;
   const phase = t * 2 * Math.PI / PERIOD;
-  const s1 = Math.sin(phase);              // cuerpo
-  const s2 = Math.sin(phase - 0.9);        // cabeza: llega un poco después -> ondulación en "S"
-  // Cuerpo: se inclina con la base fija (origen abajo), así las patitas no se mueven.
+  const s1 = Math.sin(phase), s2 = Math.sin(phase - 0.9);            // cabeza llega un poco después -> "S"
+  // reacción en curso
+  let rx = 0, rrot = 0, hop = 0;
+  if (fx) {
+    const u = (now / 1000 - fx.t0) / FX_DUR[fx.name];
+    if (u >= 1) { fx = null; fxC.clearRect(0, 0, 48, 48); }
+    else {
+      const b = Math.sin(Math.PI * u);
+      if (fx.name === 'next') { rx = 9 * b; rrot = 10 * b; }
+      else if (fx.name === 'prev') { rx = -9 * b; rrot = -10 * b; }
+      else if (fx.name === 'song') { rrot = 13 * Math.sin(Math.PI * Math.min(1, u * 1.6)); }
+      else if (fx.name === 'resume') { hop = 12 * b; }
+      drawFx(u, fx.name);
+    }
+  }
   const skew = s1 * 3.5 * amp;
-  bodyEl.style.transform = `skewX(${skew.toFixed(2)}deg)`;
-  // Cabeza: acompaña al cuello y suma su propio balanceo.
+  bodyEl.style.transform = `translateY(${(-hop).toFixed(1)}px) skewX(${skew.toFixed(2)}deg)`;
   const neck = -Math.tan(skew * Math.PI / 180) * 50;
-  head.style.transform = `translateX(${(neck + s2 * 5 * amp).toFixed(2)}px) rotate(${(s2 * 5 * amp).toFixed(2)}deg)`;
-  requestAnimationFrame(frame);
+  head.style.transform = `translate(${(neck + s2 * 5 * amp + rx).toFixed(2)}px, ${(slump * 5 - hop).toFixed(1)}px) rotate(${(s2 * 5 * amp + rrot - slump * 4).toFixed(2)}deg)`;
+  // se detiene del todo cuando no hay nada que animar (ahorra CPU)
+  if (kind === 'animal' && (playing || amp > 0.01 || Math.abs(slump - (playing ? 0 : 1)) > 0.01 || fx)) raf = requestAnimationFrame(frame);
 }
+
+/* ---------- Moods: personas, pixel art a ~12 fps solo mientras suena ---------- */
+let mood = null, moodTimer = 0, moodT = 0;
+function drawMoodFrame() {
+  if (!mood || !window.SCENES) return;
+  const c = document.getElementById('scene').getContext('2d');
+  c.clearRect(0, 0, 48, 48);
+  SCENES[mood.mood](c, moodT, mood.action, !playing);
+}
+function moodStart() {
+  moodStop(); let prev = performance.now();
+  moodTimer = setInterval(() => {
+    const now = performance.now(); if (!playing) { prev = now; return; }
+    moodT += (now - prev) / 1000; prev = now;
+    moodTick(mood, moodT); drawMoodFrame();
+  }, 83);
+  setTimeout(drawMoodFrame, 50);
+}
+function moodStop() { if (moodTimer) clearInterval(moodTimer); moodTimer = 0; }
 
 /* ---------- Interacción ---------- */
 const stage = document.getElementById('stage');
@@ -292,8 +361,8 @@ const setVol = (e) => {
 vbar.addEventListener('mousedown', (e) => { draggingVol = true; setVol(e); e.stopPropagation(); });
 window.addEventListener('mousemove', (e) => { if (draggingVol) setVol(e); });
 window.addEventListener('mouseup', () => { draggingVol = false; });
-document.getElementById('prev').onclick = () => inv('control', { action: 'prev' });
-document.getElementById('next').onclick = () => inv('control', { action: 'next' });
+document.getElementById('prev').onclick = () => { trigger('prev'); inv('control', { action: 'prev' }); };
+document.getElementById('next').onclick = () => { trigger('next'); inv('control', { action: 'next' }); };
 document.getElementById('bar').onclick = (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   inv('control', { action: 'seek', value: (e.clientX - r.left) / r.width });
@@ -309,8 +378,9 @@ drawGlyph(document.querySelector('#prev canvas'), skipShape(-1));
 drawGlyph(document.querySelector('#next canvas'), skipShape(1));
 drawGlyph(document.getElementById('vicon'), speakerShape);
 if (window.__TAURI_INTERNALS__) { poll(); setInterval(poll, 500); }
-requestAnimationFrame(frame);
+kick();
 window.__render = render; // para pruebas
 </script>
+<script src="moods.js"></script>
 </body>
 </html>

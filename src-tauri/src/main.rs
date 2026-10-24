@@ -49,7 +49,7 @@ fn load_skin(app: &AppHandle) -> String {
     skin_path(app)
         .and_then(|p| fs::read_to_string(p).ok())
         .map(|s| s.trim().to_string())
-        .filter(|s| matches!(s.as_str(), "dog" | "cat" | "cover" | "none"))
+        .filter(|s| matches!(s.as_str(), "dog" | "cat" | "cover" | "none" | "trabajando" | "programando" | "tradeando" | "descansando" | "festejando"))
         .unwrap_or_else(|| "dog".into())
 }
 
@@ -271,7 +271,12 @@ fn main() {
             let m_cat = MenuItem::with_id(app, "cat", "Gato", true, None::<&str>)?;
             let m_cover = MenuItem::with_id(app, "cover", "Carátula", true, None::<&str>)?;
             let m_none = MenuItem::with_id(app, "none", "Sin imagen (solo controles)", true, None::<&str>)?;
-            let m_skin = Submenu::with_items(app, "Aspecto del flotante", true, &[&m_dog, &m_cat, &m_cover, &m_none])?;
+            let m_trab = MenuItem::with_id(app, "trabajando", "Mood: trabajando", true, None::<&str>)?;
+            let m_prog = MenuItem::with_id(app, "programando", "Mood: programando", true, None::<&str>)?;
+            let m_trad = MenuItem::with_id(app, "tradeando", "Mood: tradeando", true, None::<&str>)?;
+            let m_desc = MenuItem::with_id(app, "descansando", "Mood: descansando", true, None::<&str>)?;
+            let m_fest = MenuItem::with_id(app, "festejando", "Mood: festejando", true, None::<&str>)?;
+            let m_skin = Submenu::with_items(app, "Aspecto del flotante", true, &[&m_dog, &m_cat, &m_cover, &m_none, &PredefinedMenuItem::separator(app)?, &m_trab, &m_prog, &m_trad, &m_desc, &m_fest])?;
             let m_auto = CheckMenuItem::with_id(app, "auto", "Iniciar con Windows", true, app.autolaunch().is_enabled().unwrap_or(false), None::<&str>)?;
             let m_auto_c = m_auto.clone();
             let s50 = MenuItem::with_id(app, "sz50", "Muy pequeño (50%)", true, None::<&str>)?;
@@ -301,6 +306,7 @@ fn main() {
                     "cat" => set_skin(app, "cat"),
                     "cover" => set_skin(app, "cover"),
                     "none" => set_skin(app, "none"),
+                    id @ ("trabajando" | "programando" | "tradeando" | "descansando" | "festejando") => set_skin(app, id),
                     "upd" => {
                         let a = app.clone();
                         tauri::async_runtime::spawn(check_update(a, true));
