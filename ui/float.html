@@ -31,11 +31,16 @@
   #vicon { width: 22px; height: 22px; image-rendering: pixelated; filter: drop-shadow(0 0 2px #000a); }
   #vbar { flex: 1; height: 6px; position: relative; cursor: pointer; background: #0008; box-shadow: 0 0 0 2px #000a; }
   #vfill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: #fff; }
-  #title { margin: 8px 6px 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-           text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000, 0 0 4px #000; letter-spacing: .3px; }
-  #artist { margin: 1px 6px 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            font-size: 10px; opacity: .85;
-            text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000, 0 0 4px #000; }
+  #title { margin: 10px 8px 0; text-align: center; white-space: nowrap; overflow: hidden; color: #fff;
+           font-size: 16px; font-weight: 800; letter-spacing: .4px; }
+  #title span { display: inline-block; will-change: transform;
+    text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000, 0 3px 6px #000c; }
+  #title.marquee { text-align: left; }
+  #title.marquee span { animation: slide var(--dur, 8s) ease-in-out infinite alternate; }
+  @keyframes slide { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--shift, 0px)); } }
+  #artist { margin: 3px 8px 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            font-size: 12px; font-weight: 700; color: #f0f0f4; letter-spacing: .3px;
+            text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000, 0 2px 5px #000c; }
 </style>
 </head>
 <body>
@@ -51,7 +56,7 @@
     <button class="btn" id="next" title="Siguiente"><canvas width="11" height="11"></canvas></button>
   </div>
   <div id="bar"><div id="fill"></div></div>
-  <div id="title">Lite Music</div>
+  <div id="title"><span>Lite Music</span></div>
   <div id="artist"></div>
   <div id="volrow" title="Volumen"><canvas id="vicon" width="11" height="11"></canvas><div id="vbar"><div id="vfill"></div></div></div>
 </div>
@@ -203,29 +208,47 @@ function render(st) {
     cover = url; const img = document.getElementById('cover');
     if (url) img.src = url; else img.removeAttribute('src');
   }
-  document.getElementById('title').textContent = st.title || 'Lite Music';
+  setTitle(st.title || 'Lite Music');
   document.getElementById('artist').textContent = st.artist || '';
   const f = st.dur > 0 ? Math.min(100, (st.pos / st.dur) * 100) : 0;
   document.getElementById('fill').style.width = f + '%';
   if (!draggingVol) document.getElementById('vfill').style.width = Math.round((st.vol ?? 1) * 100) + '%';
 }
-let ppDrawn = false, draggingVol = false;
+let ppDrawn = false, draggingVol = false, shownTitle = null;
+// Si el título no cabe, se desplaza suavemente de un lado a otro en vez de cortarse.
+function setTitle(text) {
+  if (text === shownTitle) return;
+  shownTitle = text;
+  const box = document.getElementById('title'), span = box.firstElementChild;
+  span.textContent = text; box.classList.remove('marquee');
+  const over = span.offsetWidth - box.clientWidth;
+  if (over > 4) {
+    box.style.setProperty('--shift', `-${over + 8}px`);
+    box.style.setProperty('--dur', `${Math.max(5, over / 14)}s`);
+    box.classList.add('marquee');
+  }
+}
 async function poll() {
   try { render(await inv('get_state')); } catch (_) {}
 }
 
-/* ---------- Animación: balanceo suave de la cabeza ---------- */
+/* ---------- Animación: vaivén relajado, patitas firmes ---------- */
 const head = document.getElementById('head'), bodyEl = document.getElementById('body');
 let t = 0, last = performance.now(), amp = 0;
+const PERIOD = 3.2;                       // segundos por vaivén completo (lento = relajado)
 function frame(now) {
-  const dt = (now - last) / 1000; last = now;
-  amp += ((playing ? 1 : 0) - amp) * Math.min(1, dt * 4);            // acelera / frena suave
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  amp += ((playing ? 1 : 0) - amp) * Math.min(1, dt * 2.5);          // arranca y frena con suavidad
   if (playing) t += dt;
-  const s = Math.sin(t * 2 * Math.PI / 1.6);
-  head.style.transform = `translateX(${(s * 6 * amp).toFixed(2)}px) rotate(${(s * 7 * amp).toFixed(2)}deg)`;
-  // cuerpo: rebota suave al ritmo (2 veces por vaivén de la cabeza) y se inclina al revés que la cabeza
-  const bob = (1 - Math.cos(t * 4 * Math.PI / 1.6)) / 2;
-  bodyEl.style.transform = `translate(${(-s * 2.5 * amp).toFixed(2)}px, ${(-bob * 3 * amp).toFixed(2)}px) rotate(${(-s * 2 * amp).toFixed(2)}deg)`;
+  const phase = t * 2 * Math.PI / PERIOD;
+  const s1 = Math.sin(phase);              // cuerpo
+  const s2 = Math.sin(phase - 0.9);        // cabeza: llega un poco después -> ondulación en "S"
+  // Cuerpo: se inclina con la base fija (origen abajo), así las patitas no se mueven.
+  const skew = s1 * 3.5 * amp;
+  bodyEl.style.transform = `skewX(${skew.toFixed(2)}deg)`;
+  // Cabeza: acompaña al cuello y suma su propio balanceo.
+  const neck = -Math.tan(skew * Math.PI / 180) * 50;
+  head.style.transform = `translateX(${(neck + s2 * 5 * amp).toFixed(2)}px) rotate(${(s2 * 5 * amp).toFixed(2)}deg)`;
   requestAnimationFrame(frame);
 }
 
