@@ -6,6 +6,8 @@
   const css = `
     html.lm-hidden *, html.lm-hidden *::before, html.lm-hidden *::after { animation: none !important; transition: none !important; }
     html.lm-hidden ytmusic-player-page, html.lm-hidden #player { visibility: hidden !important; }
+    /* Modo ahorro: sin dibujar nada de la interfaz (el audio, el <video> y los tiempos siguen funcionando) */
+    html.lm-full body { display: none !important; }
   `;
   // El script corre al crear el documento: puede que aún no exista <html>.
   const whenRoot = (fn) => {
@@ -69,7 +71,10 @@
     pause: () => { const v = document.querySelector('video'); if (v && !v.paused) v.pause(); },
     times: () => readTimes(document.querySelector('video')),
     seek: (f) => { const v = document.querySelector('video'); const d = readTimes(v).dur; if (v && d) v.currentTime = f * d; },
-    setHidden: (h) => document.documentElement?.classList.toggle('lm-hidden', h),
+    setHidden: (h, full) => {
+      const r = document.documentElement; if (!r) return;
+      r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full);
+    },
   };
 
   // Informa de la canción al reproductor flotante (0,5 s si se ve, 5 s si no)

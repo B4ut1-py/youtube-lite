@@ -44,6 +44,9 @@ struct Settings {
     pomo_rest_min: u64,
     close_to_tray: bool,
     auto_update: bool,
+    idle_webview: bool,
+    idle_hide_ui: bool,
+    destroy_float: bool,
 }
 
 impl Default for Settings {
@@ -52,6 +55,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true,
         }
     }
 }
@@ -167,16 +171,89 @@ fn cfg_write(app: &AppHandle, name: &str, value: &str) {
     }
 }
 
-// Visible = lo quiere el usuario Y no está oculto por un juego / pantalla completa.
-fn apply_float_visibility(app: &AppHandle) {
+// Crea el flotante (sin marco, sin fondo, siempre encima) con el tamaño, posición y opciones guardados.
+fn create_float(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let cfg = app.state::<AppState>().settings.lock().unwrap().clone();
+    #[allow(unused_mut)]
+    let mut fb = WebviewWindowBuilder::new(app, "float", WebviewUrl::App("float.html".into()))
+        .title("Lite Music Float")
+        .inner_size(FLOAT_W * cfg.scale, FLOAT_H * cfg.scale)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(cfg.float_on_top)
+        .skip_taskbar(true)
+        .resizable(false);
+    #[cfg(windows)]
+    {
+        fb = fb.additional_browser_args(BROWSER_ARGS);
+    }
+    let w = fb.build()?;
+    let _ = w.set_zoom(cfg.scale);
+    restore_float_pos(app, &w);
+    let ah = app.clone();
+    w.on_window_event(move |e| {
+        if let WindowEvent::Moved(p) = e {
+            *ah.state::<AppState>().pending_pos.lock().unwrap() = Some((p.x, p.y));
+        }
+    });
+    Ok(w)
+}
+
+static FLOAT_BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn float_wanted(app: &AppHandle) -> bool {
     let st = app.state::<AppState>();
     let want = *st.user_float.lock().unwrap() && !*st.auto_hidden.lock().unwrap();
-    if let Some(w) = app.get_webview_window("float") {
-        if w.is_visible().unwrap_or(true) != want {
-            let _ = if want { w.show() } else { w.hide() };
-        }
+    want
+}
+
+// ¿Coincide lo que se ve con lo que se quiere ver? (el latido de cada segundo lo corrige si no)
+fn float_in_sync(app: &AppHandle) -> bool {
+    let want = float_wanted(app);
+    let destroy = app.state::<AppState>().settings.lock().unwrap().destroy_float;
+    match app.get_webview_window("float") {
+        Some(w) => want == w.is_visible().unwrap_or(true) || (!want && false),
+        None => !want && destroy,
     }
-    *st.float_visible.lock().unwrap() = want;
+}
+
+// Visible = lo quiere el usuario Y no está oculto por un juego / pantalla completa.
+// Con el ahorro activado, oculto = la ventana se destruye (libera su proceso) y se recrea al mostrarla.
+fn apply_float_visibility(app: &AppHandle) {
+    use std::sync::atomic::Ordering;
+    let want = float_wanted(app);
+    *app.state::<AppState>().float_visible.lock().unwrap() = want;
+    if FLOAT_BUSY.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let a = app.clone();
+    // Crear o destruir ventanas desde un hilo aparte evita bloqueos en Windows.
+    std::thread::spawn(move || {
+        let destroy = a.state::<AppState>().settings.lock().unwrap().destroy_float;
+        match (want, a.get_webview_window("float")) {
+            (true, Some(w)) => {
+                if !w.is_visible().unwrap_or(true) {
+                    let _ = w.show();
+                }
+            }
+            (true, None) => {
+                let _ = create_float(&a);
+            }
+            (false, Some(w)) => {
+                if destroy {
+                    if let Ok(p) = w.outer_position() {
+                        cfg_write(&a, "pos.txt", &format!("{},{}", p.x, p.y));
+                    }
+                    let _ = w.destroy();
+                } else {
+                    let _ = w.hide();
+                }
+            }
+            (false, None) => {}
+        }
+        FLOAT_BUSY.store(false, Ordering::SeqCst);
+    });
 }
 
 fn toggle_float(app: &AppHandle) {
@@ -310,7 +387,7 @@ fn start_ticker(app: AppHandle) {
             *a = want;
             c
         };
-        if changed {
+        if changed || !float_in_sync(&app) {
             apply_float_visibility(&app);
         }
         let pos = st.pending_pos.lock().unwrap().take();
@@ -432,6 +509,9 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "pomo_rest_min" => if let Some(v) = n { c.pomo_rest_min = (v as u64).clamp(1, 60) },
             "close_to_tray" => if let Some(v) = b { c.close_to_tray = v },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
+            "idle_webview" => if let Some(v) = b { c.idle_webview = v },
+            "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
+            "destroy_float" => if let Some(v) = b { c.destroy_float = v },
             _ => {}
         }
     }
@@ -495,18 +575,50 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
 }
 
-fn show(app: &AppHandle) {
-    if let Some(w) = main_window(app) {
-        let _ = w.show();
-        let _ = w.unminimize();
-        let _ = w.set_focus();
-        let _ = w.eval("window.__lm&&window.__lm.setHidden(false)");
+// WebView2: con la ventana oculta, la marca como no visible y pide un uso de memoria bajo (como una pestaña en segundo plano).
+#[cfg(windows)]
+fn set_webview_idle(w: &WebviewWindow, idle: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL};
+    use windows_core::Interface;
+    let _ = w.with_webview(move |pw| unsafe {
+        let controller = pw.controller();
+        let _ = controller.SetIsVisible(!idle);
+        if let Ok(core) = controller.CoreWebView2() {
+            if let Ok(c19) = core.cast::<ICoreWebView2_19>() {
+                let _ = c19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL(if idle { 1 } else { 0 }));
+            }
+        }
+    });
+}
+#[cfg(not(windows))]
+fn set_webview_idle(_w: &WebviewWindow, _idle: bool) {}
+
+// Entra o sale del modo ahorro de la ventana principal según los ajustes.
+fn set_main_idle(app: &AppHandle, idle: bool) {
+    let Some(w) = main_window(app) else { return };
+    let st = app.state::<AppState>();
+    let (webview, ui) = {
+        let c = st.settings.lock().unwrap();
+        (c.idle_webview, c.idle_hide_ui)
+    };
+    let _ = w.eval(&format!("window.__lm&&window.__lm.setHidden({}, {})", idle, idle && ui));
+    if webview || !idle {
+        set_webview_idle(&w, idle);
     }
 }
 
-fn hide(w: &WebviewWindow) {
-    let _ = w.eval("window.__lm&&window.__lm.setHidden(true)");
+fn show(app: &AppHandle) {
+    if let Some(w) = main_window(app) {
+        set_main_idle(app, false);
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+fn hide(app: &AppHandle, w: &WebviewWindow) {
     let _ = w.hide();
+    set_main_idle(app, true);
 }
 
 fn js(app: &AppHandle, code: &str) {
@@ -548,41 +660,19 @@ fn main() {
             let window = builder.build()?;
             // Arranque con Windows: empieza oculta en la bandeja.
             if std::env::args().any(|a| a == "--minimized") {
-                hide(&window);
+                hide(app.handle(), &window);
             }
 
-            // Reproductor flotante: sin marco, sin fondo, siempre encima.
-            #[allow(unused_mut)]
-            let mut fb = WebviewWindowBuilder::new(app, "float", WebviewUrl::App("float.html".into()))
-                .title("Lite Music Float")
-                .inner_size(340.0, 385.0)
-                .decorations(false)
-                .transparent(true)
-                .shadow(false)
-                .always_on_top(true)
-                .skip_taskbar(true)
-                .resizable(false);
-            #[cfg(windows)]
-            {
-                fb = fb.additional_browser_args(BROWSER_ARGS);
-            }
+            // Reproductor flotante
             *app.state::<AppState>().settings.lock().unwrap() = load_settings(app.handle());
             let cfg0 = app.state::<AppState>().settings.lock().unwrap().clone();
-            fb = fb.always_on_top(cfg0.float_on_top);
-            let fwin = fb.build()?;
-            set_float_scale(app.handle(), cfg0.scale);
             set_skin(app.handle(), &cfg0.skin);
-            if !cfg0.float_at_start {
+            if cfg0.float_at_start {
+                create_float(app.handle())?;
+            } else {
                 *app.state::<AppState>().user_float.lock().unwrap() = false;
-                apply_float_visibility(app.handle());
+                *app.state::<AppState>().float_visible.lock().unwrap() = false;
             }
-            restore_float_pos(app.handle(), &fwin);
-            let ah = app.handle().clone();
-            fwin.on_window_event(move |e| {
-                if let WindowEvent::Moved(p) = e {
-                    *ah.state::<AppState>().pending_pos.lock().unwrap() = Some((p.x, p.y));
-                }
-            });
 
             // Cerrar = ocultar a la bandeja; la música sigue sonando.
             let w = window.clone();
@@ -591,7 +681,7 @@ fn main() {
                 if let WindowEvent::CloseRequested { api, .. } = e {
                     if wapp.state::<AppState>().settings.lock().unwrap().close_to_tray {
                         api.prevent_close();
-                        hide(&w);
+                        hide(&wapp, &w);
                     } else {
                         wapp.exit(0);
                     }

@@ -113,6 +113,11 @@ const TABS = [
       { type: 'toggle', key: 'close_to_tray', label: 'Cerrar a la bandeja', desc: 'Al cerrar la ventana la música sigue sonando. Si lo apagas, cerrar sale de la app.' },
     ],
     [
+      { type: 'toggle', key: 'idle_webview', label: 'Ahorro de memoria con la ventana oculta', desc: 'Pide a WebView2 que libere memoria mientras la ventana está en la bandeja.' },
+      { type: 'toggle', key: 'idle_hide_ui', label: 'No dibujar la interfaz de YouTube al ocultarla', desc: 'La música sigue sonando. Apágalo si algo no responde al volver.' },
+      { type: 'toggle', key: 'destroy_float', label: 'Liberar el flotante cuando está oculto', desc: 'Se cierra su proceso (unos 25 MB) y reaparece en un instante al mostrarlo.' },
+    ],
+    [
       { type: 'toggle', key: 'auto_update', label: 'Buscar actualizaciones al abrir', desc: 'Se instalan solas.' },
       { type: 'button', label: 'Actualizaciones', desc: '', id: 'ver', buttons: [['Buscar ahora', 'check_update']] },
     ] ] },

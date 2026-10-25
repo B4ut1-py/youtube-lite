@@ -2096,6 +2096,8 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
+ "webview2-com",
+ "windows-core",
 ]
 
 [[package]]
