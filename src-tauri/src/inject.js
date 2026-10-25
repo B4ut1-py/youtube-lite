@@ -65,6 +65,8 @@
       lmVol = Math.min(1, Math.max(0, f));
       const v = document.querySelector('video'); if (v) { applying = true; v.volume = lmVol; applying = false; }
     },
+    play: () => { const v = document.querySelector('video'); if (v && v.paused) v.play(); },
+    pause: () => { const v = document.querySelector('video'); if (v && !v.paused) v.pause(); },
     times: () => readTimes(document.querySelector('video')),
     seek: (f) => { const v = document.querySelector('video'); const d = readTimes(v).dur; if (v && d) v.currentTime = f * d; },
     setHidden: (h) => document.documentElement?.classList.toggle('lm-hidden', h),

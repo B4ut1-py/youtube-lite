@@ -1,13 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fs, sync::Mutex};
+use std::{fs, sync::Mutex, time::{Duration, Instant}};
 
 use serde::{Deserialize, Serialize};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
-    LogicalSize,
+    LogicalSize, PhysicalPosition,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
@@ -33,9 +33,27 @@ struct PlayerState {
     dur: f64,
     #[serde(default)]
     skin: String,
+    pomo_phase: String,
+    pomo_left: u64,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Phase { Off, Focus, Rest }
+
+struct Pomo {
+    phase: Phase,
+    end: Instant,
+    focus_s: u64,
+    rest_s: u64,
+    prev_skin: String,
 }
 
 struct AppState {
+    pomo: Mutex<Pomo>,
+    user_float: Mutex<bool>,      // el usuario quiere ver el flotante
+    auto_hidden: Mutex<bool>,     // oculto automáticamente (juego / pantalla completa)
+    autohide_on: Mutex<bool>,
+    pending_pos: Mutex<Option<(i32, i32)>>,
     scale: Mutex<f64>,
     player: Mutex<PlayerState>,
     float_visible: Mutex<bool>,
@@ -100,12 +118,174 @@ fn scale_float(app: AppHandle, delta: f64) {
     set_float_scale(&app, cur + delta);
 }
 
-fn toggle_float(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("float") {
-        let visible = w.is_visible().unwrap_or(true);
-        let _ = if visible { w.hide() } else { w.show() };
-        *app.state::<AppState>().float_visible.lock().unwrap() = !visible;
+fn cfg_path(app: &AppHandle, name: &str) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join(name))
+}
+
+fn cfg_read(app: &AppHandle, name: &str) -> Option<String> {
+    cfg_path(app, name).and_then(|p| fs::read_to_string(p).ok()).map(|s| s.trim().to_string())
+}
+
+fn cfg_write(app: &AppHandle, name: &str, value: &str) {
+    if let Some(p) = cfg_path(app, name) {
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        let _ = fs::write(p, value);
     }
+}
+
+// Visible = lo quiere el usuario Y no está oculto por un juego / pantalla completa.
+fn apply_float_visibility(app: &AppHandle) {
+    let st = app.state::<AppState>();
+    let want = *st.user_float.lock().unwrap() && !*st.auto_hidden.lock().unwrap();
+    if let Some(w) = app.get_webview_window("float") {
+        if w.is_visible().unwrap_or(true) != want {
+            let _ = if want { w.show() } else { w.hide() };
+        }
+    }
+    *st.float_visible.lock().unwrap() = want;
+}
+
+fn toggle_float(app: &AppHandle) {
+    {
+        let st = app.state::<AppState>();
+        let mut u = st.user_float.lock().unwrap();
+        *u = !*u;
+    }
+    apply_float_visibility(app);
+}
+
+// Restaura la posición guardada del flotante si cae dentro de algún monitor conectado.
+fn restore_float_pos(app: &AppHandle, w: &WebviewWindow) {
+    let Some(txt) = cfg_read(app, "pos.txt") else { return };
+    let mut it = txt.split(',').filter_map(|v| v.trim().parse::<i32>().ok());
+    let (Some(x), Some(y)) = (it.next(), it.next()) else { return };
+    let inside = app.available_monitors().unwrap_or_default().iter().any(|m| {
+        let (p, z) = (m.position(), m.size());
+        x + 40 >= p.x && x + 40 < p.x + z.width as i32 && y + 40 >= p.y && y + 40 < p.y + z.height as i32
+    });
+    if inside {
+        let _ = w.set_position(PhysicalPosition::new(x, y));
+    }
+}
+
+// ¿Hay un juego o una aplicación a pantalla completa en primer plano? (solo Windows)
+#[cfg(windows)]
+fn fullscreen_busy() -> bool {
+    #[link(name = "shell32")]
+    extern "system" {
+        fn SHQueryUserNotificationState(state: *mut i32) -> i32;
+    }
+    let mut state: i32 = 0;
+    // 2 = pantalla completa / presentación, 3 = juego Direct3D a pantalla completa, 4 = modo presentación
+    unsafe { SHQueryUserNotificationState(&mut state) == 0 && matches!(state, 2 | 3 | 4) }
+}
+#[cfg(not(windows))]
+fn fullscreen_busy() -> bool {
+    false
+}
+
+// --- Pomodoro: estudio -> descanso -> estudio... hasta que lo detengas ---
+fn set_skin_temp(app: &AppHandle, skin: &str) {
+    app.state::<AppState>().player.lock().unwrap().skin = skin.into();
+}
+
+fn start_pomo(app: &AppHandle, focus_min: u64, rest_min: u64) {
+    let prev = {
+        let st = app.state::<AppState>();
+        let mut p = st.pomo.lock().unwrap();
+        if p.phase == Phase::Off {
+            p.prev_skin = st.player.lock().unwrap().skin.clone();
+        }
+        p.phase = Phase::Focus;
+        p.focus_s = focus_min * 60;
+        p.rest_s = rest_min * 60;
+        p.end = Instant::now() + Duration::from_secs(p.focus_s);
+        p.prev_skin.clone()
+    };
+    let _ = prev;
+    set_skin_temp(app, "estudiando");
+    js(app, "window.__lm&&window.__lm.play()");
+}
+
+fn stop_pomo(app: &AppHandle) {
+    let prev = {
+        let st = app.state::<AppState>();
+        let mut p = st.pomo.lock().unwrap();
+        if p.phase == Phase::Off {
+            return;
+        }
+        p.phase = Phase::Off;
+        p.prev_skin.clone()
+    };
+    if !prev.is_empty() {
+        set_skin_temp(app, &prev);
+    }
+    if let Some(t) = app.tray_by_id("main") {
+        let _ = t.set_tooltip(Some("Lite Music"));
+    }
+}
+
+fn pomo_tick(app: &AppHandle) {
+    let (changed, phase, left) = {
+        let st = app.state::<AppState>();
+        let mut p = st.pomo.lock().unwrap();
+        if p.phase == Phase::Off {
+            return;
+        }
+        let now = Instant::now();
+        let mut changed = None;
+        if now >= p.end {
+            if p.phase == Phase::Focus {
+                p.phase = Phase::Rest;
+                p.end = now + Duration::from_secs(p.rest_s);
+            } else {
+                p.phase = Phase::Focus;
+                p.end = now + Duration::from_secs(p.focus_s);
+            }
+            changed = Some(p.phase);
+        }
+        (changed, p.phase, p.end.saturating_duration_since(now).as_secs())
+    };
+    match changed {
+        Some(Phase::Rest) => {
+            set_skin_temp(app, "descansando");
+            js(app, "window.__lm&&window.__lm.pause()");
+        }
+        Some(Phase::Focus) => {
+            set_skin_temp(app, "estudiando");
+            js(app, "window.__lm&&window.__lm.play()");
+        }
+        _ => {}
+    }
+    if let Some(t) = app.tray_by_id("main") {
+        let name = if phase == Phase::Focus { "Estudio" } else { "Descanso" };
+        let _ = t.set_tooltip(Some(&format!("Lite Music — {name} {}:{:02}", left / 60, left % 60)));
+    }
+}
+
+// Un solo hilo con un latido por segundo: pomodoro, ocultarse en pantalla completa y guardar la posición.
+fn start_ticker(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(1));
+        pomo_tick(&app);
+        let st = app.state::<AppState>();
+        let want = *st.autohide_on.lock().unwrap() && fullscreen_busy();
+        let changed = {
+            let mut a = st.auto_hidden.lock().unwrap();
+            let c = *a != want;
+            *a = want;
+            c
+        };
+        if changed {
+            apply_float_visibility(&app);
+        }
+        let pos = st.pending_pos.lock().unwrap().take();
+        if let Some((x, y)) = pos {
+            cfg_write(&app, "pos.txt", &format!("{x},{y}"));
+        }
+    });
 }
 
 // La página de YouTube Music informa de la canción; devuelve si el flotante está visible
@@ -125,7 +305,11 @@ fn report_state(state: tauri::State<AppState>, title: String, artist: String, co
 
 #[tauri::command]
 fn get_state(state: tauri::State<AppState>) -> PlayerState {
-    state.player.lock().unwrap().clone()
+    let mut p = state.player.lock().unwrap().clone();
+    let pm = state.pomo.lock().unwrap();
+    p.pomo_phase = match pm.phase { Phase::Off => "off", Phase::Focus => "focus", Phase::Rest => "rest" }.into();
+    p.pomo_left = if pm.phase == Phase::Off { 0 } else { pm.end.saturating_duration_since(Instant::now()).as_secs() };
+    p
 }
 
 #[tauri::command]
@@ -204,7 +388,7 @@ async fn tokio_sleep(secs: u64) {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float])
-        .manage(AppState { scale: Mutex::new(1.0), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
+        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), autohide_on: Mutex::new(true), pending_pos: Mutex::new(None), scale: Mutex::new(1.0), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
@@ -248,7 +432,15 @@ fn main() {
             {
                 fb = fb.additional_browser_args(BROWSER_ARGS);
             }
-            fb.build()?;
+            let fwin = fb.build()?;
+            restore_float_pos(app.handle(), &fwin);
+            let ah = app.handle().clone();
+            fwin.on_window_event(move |e| {
+                if let WindowEvent::Moved(p) = e {
+                    *ah.state::<AppState>().pending_pos.lock().unwrap() = Some((p.x, p.y));
+                }
+            });
+            *app.state::<AppState>().autohide_on.lock().unwrap() = cfg_read(app.handle(), "autohide.txt").as_deref() != Some("off");
             set_float_scale(app.handle(), load_scale(app.handle()));
             set_skin(app.handle(), &load_skin(app.handle()));
 
@@ -285,9 +477,15 @@ fn main() {
             let s100 = MenuItem::with_id(app, "sz100", "Normal (100%)", true, None::<&str>)?;
             let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s50, &s70, &s100])?;
             let m_upd = MenuItem::with_id(app, "upd", "Buscar actualizaciones", true, None::<&str>)?;
+            let p1 = MenuItem::with_id(app, "pomo25", "Iniciar 25 min estudio / 5 descanso", true, None::<&str>)?;
+            let p2 = MenuItem::with_id(app, "pomo50", "Iniciar 50 min estudio / 10 descanso", true, None::<&str>)?;
+            let p3 = MenuItem::with_id(app, "pomo0", "Detener", true, None::<&str>)?;
+            let m_pomo = Submenu::with_items(app, "Pomodoro", true, &[&p1, &p2, &p3])?;
+            let m_hide = CheckMenuItem::with_id(app, "hide", "Ocultar flotante en juegos / pantalla completa", true, *app.state::<AppState>().autohide_on.lock().unwrap(), None::<&str>)?;
+            let m_hide_c = m_hide.clone();
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &sep, &m_auto, &m_upd, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &m_hide, &sep, &m_pomo, &sep, &m_auto, &m_upd, &sep, &m_quit])?;
 
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -308,6 +506,14 @@ fn main() {
                     "cover" => set_skin(app, "cover"),
                     "none" => set_skin(app, "none"),
                     id @ ("trabajando" | "programando" | "tradeando" | "descansando" | "estudiando" | "festejando") => set_skin(app, id),
+                    "pomo25" => start_pomo(app, 25, 5),
+                    "pomo50" => start_pomo(app, 50, 10),
+                    "pomo0" => stop_pomo(app),
+                    "hide" => {
+                        let on = m_hide_c.is_checked().unwrap_or(true);
+                        *app.state::<AppState>().autohide_on.lock().unwrap() = on;
+                        cfg_write(app, "autohide.txt", if on { "on" } else { "off" });
+                    }
                     "upd" => {
                         let a = app.clone();
                         tauri::async_runtime::spawn(check_update(a, true));
@@ -330,6 +536,8 @@ fn main() {
                     }
                 })
                 .build(app)?;
+
+            start_ticker(app.handle().clone());
 
             // Actualización automática al arrancar (tras unos segundos, para no competir con la carga).
             let a = app.handle().clone();
