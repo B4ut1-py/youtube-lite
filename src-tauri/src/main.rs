@@ -376,8 +376,34 @@ fn pomo_tick(app: &AppHandle) {
 
 // Un solo hilo con un latido por segundo: pomodoro, ocultarse en pantalla completa y guardar la posición.
 fn start_ticker(app: AppHandle) {
-    std::thread::spawn(move || loop {
+    std::thread::spawn(move || {
+    let mut last_title = String::new();
+    let mut trim_at: Option<Instant> = None;
+    let mut last_trim = Instant::now();
+    loop {
         std::thread::sleep(Duration::from_secs(1));
+        // Ventana oculta: tras cambiar de canción (o cada 3 min) la página vuelve a crecer; se le pide de nuevo bajar la memoria.
+        if let Some(w) = main_window(&app) {
+            let st = app.state::<AppState>();
+            let enabled = st.settings.lock().unwrap().idle_webview;
+            if enabled && !w.is_visible().unwrap_or(true) {
+                let title = st.player.lock().unwrap().title.clone();
+                if title != last_title {
+                    last_title = title;
+                    trim_at = Some(Instant::now() + Duration::from_secs(10));
+                }
+                let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(180);
+                if due {
+                    set_webview_memory(&w, false);
+                    std::thread::sleep(Duration::from_millis(300));
+                    set_webview_memory(&w, true);
+                    trim_at = None;
+                    last_trim = Instant::now();
+                }
+            } else {
+                last_trim = Instant::now();
+            }
+        }
         pomo_tick(&app);
         let st = app.state::<AppState>();
         let want = st.settings.lock().unwrap().autohide && fullscreen_busy();
@@ -394,6 +420,7 @@ fn start_ticker(app: AppHandle) {
         if let Some((x, y)) = pos {
             cfg_write(&app, "pos.txt", &format!("{x},{y}"));
         }
+    }
     });
 }
 
@@ -592,6 +619,22 @@ fn set_webview_idle(w: &WebviewWindow, idle: bool) {
 }
 #[cfg(not(windows))]
 fn set_webview_idle(_w: &WebviewWindow, _idle: bool) {}
+
+// Solo el nivel de memoria (sin tocar la visibilidad): sirve para "re-apretar" la memoria tras actividad.
+#[cfg(windows)]
+fn set_webview_memory(w: &WebviewWindow, low: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL};
+    use windows_core::Interface;
+    let _ = w.with_webview(move |pw| unsafe {
+        if let Ok(core) = pw.controller().CoreWebView2() {
+            if let Ok(c19) = core.cast::<ICoreWebView2_19>() {
+                let _ = c19.SetMemoryUsageTargetLevel(COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL(if low { 1 } else { 0 }));
+            }
+        }
+    });
+}
+#[cfg(not(windows))]
+fn set_webview_memory(_w: &WebviewWindow, _low: bool) {}
 
 // Entra o sale del modo ahorro de la ventana principal según los ajustes.
 fn set_main_idle(app: &AppHandle, idle: bool) {
