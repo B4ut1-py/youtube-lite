@@ -47,6 +47,8 @@ struct Settings {
     idle_webview: bool,
     idle_hide_ui: bool,
     destroy_float: bool,
+    suspend_idle: bool,
+    suspend_after_s: u64,
 }
 
 impl Default for Settings {
@@ -55,7 +57,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, suspend_idle: true, suspend_after_s: 90,
         }
     }
 }
@@ -380,13 +382,31 @@ fn start_ticker(app: AppHandle) {
     let mut last_title = String::new();
     let mut trim_at: Option<Instant> = None;
     let mut last_trim = Instant::now();
+    let mut quiet_since = Instant::now();
     loop {
         std::thread::sleep(Duration::from_secs(1));
         // Ventana oculta: tras cambiar de canción (o cada 3 min) la página vuelve a crecer; se le pide de nuevo bajar la memoria.
         if let Some(w) = main_window(&app) {
             let st = app.state::<AppState>();
             let enabled = st.settings.lock().unwrap().idle_webview;
-            if enabled && !w.is_visible().unwrap_or(true) {
+            let hidden = !w.is_visible().unwrap_or(true);
+            let (susp, after) = {
+                let c = st.settings.lock().unwrap();
+                (c.suspend_idle && c.idle_webview, c.suspend_after_s)
+            };
+            let playing = st.player.lock().unwrap().playing;
+            if playing || !hidden {
+                quiet_since = Instant::now();
+            }
+            let suspended = SUSPENDED.load(std::sync::atomic::Ordering::SeqCst);
+            // Sin música y con la ventana oculta: se congela la página hasta que vuelva a hacer falta.
+            if susp && hidden && !playing && !suspended && quiet_since.elapsed() >= Duration::from_secs(after) {
+                set_webview_suspended(&w, true);
+                SUSPENDED.store(true, std::sync::atomic::Ordering::SeqCst);
+            } else if suspended && (!susp || !hidden) {
+                wake(&app);
+            }
+            if enabled && hidden && !suspended {
                 let title = st.player.lock().unwrap().title.clone();
                 if title != last_title {
                     last_title = title;
@@ -539,6 +559,8 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "idle_webview" => if let Some(v) = b { c.idle_webview = v },
             "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
             "destroy_float" => if let Some(v) = b { c.destroy_float = v },
+            "suspend_idle" => if let Some(v) = b { c.suspend_idle = v },
+            "suspend_after_s" => if let Some(v) = n { c.suspend_after_s = (v as u64).clamp(30, 1800) },
             _ => {}
         }
     }
@@ -636,9 +658,45 @@ fn set_webview_memory(w: &WebviewWindow, low: bool) {
 #[cfg(not(windows))]
 fn set_webview_memory(_w: &WebviewWindow, _low: bool) {}
 
+// Suspende la página por completo (no ejecuta nada, como una pestaña congelada). Solo con la ventana oculta.
+static SUSPENDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(windows)]
+fn set_webview_suspended(w: &WebviewWindow, suspend: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_3;
+    use windows_core::Interface;
+    let _ = w.with_webview(move |pw| unsafe {
+        if let Ok(core) = pw.controller().CoreWebView2() {
+            if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
+                if suspend {
+                    let h = webview2_com::TrySuspendCompletedHandler::create(Box::new(|_, _| Ok(())));
+                    let _ = c3.TrySuspend(&h);
+                } else {
+                    let _ = c3.Resume();
+                }
+            }
+        }
+    });
+}
+#[cfg(not(windows))]
+fn set_webview_suspended(_w: &WebviewWindow, _suspend: bool) {}
+
+// Despierta la página si estaba suspendida (antes de mostrarla o de enviarle una orden).
+fn wake(app: &AppHandle) {
+    if SUSPENDED.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        if let Some(w) = main_window(app) {
+            set_webview_suspended(&w, false);
+            set_webview_idle(&w, true);
+        }
+    }
+}
+
 // Entra o sale del modo ahorro de la ventana principal según los ajustes.
 fn set_main_idle(app: &AppHandle, idle: bool) {
     let Some(w) = main_window(app) else { return };
+    if !idle {
+        wake(app);
+    }
     let st = app.state::<AppState>();
     let (webview, ui) = {
         let c = st.settings.lock().unwrap();
@@ -666,6 +724,7 @@ fn hide(app: &AppHandle, w: &WebviewWindow) {
 
 fn js(app: &AppHandle, code: &str) {
     if let Some(w) = main_window(app) {
+        wake(app);
         let _ = w.eval(code);
     }
 }

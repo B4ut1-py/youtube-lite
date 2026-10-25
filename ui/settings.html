@@ -115,6 +115,8 @@ const TABS = [
     [
       { type: 'toggle', key: 'idle_webview', label: 'Ahorro de memoria con la ventana oculta', desc: 'Pide a WebView2 que libere memoria mientras la ventana está en la bandeja.' },
       { type: 'toggle', key: 'idle_hide_ui', label: 'No dibujar la interfaz de YouTube al ocultarla', desc: 'La música sigue sonando. Apágalo si algo no responde al volver.' },
+      { type: 'toggle', key: 'suspend_idle', label: 'Congelar YouTube Music cuando no suena nada', desc: 'Con la ventana oculta y la música en pausa, la página se suspende por completo (casi 0 % de CPU). Se reactiva sola al mostrar la ventana o usar los controles del flotante o de la bandeja. Las teclas multimedia no la despiertan.' },
+      { type: 'num', key: 'suspend_after_s', label: 'Congelar tras', unit: 's', min: 30, max: 1800, dep: 'suspend_idle' },
       { type: 'toggle', key: 'destroy_float', label: 'Liberar el flotante cuando está oculto', desc: 'Se cierra su proceso (unos 25 MB) y reaparece en un instante al mostrarlo.' },
     ],
     [
