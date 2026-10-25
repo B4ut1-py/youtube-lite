@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings-window",
+  "description": "Ventana de configuración.",
+  "windows": ["settings"],
+  "permissions": ["allow-get-settings", "allow-set-setting", "allow-settings-action"]
+}

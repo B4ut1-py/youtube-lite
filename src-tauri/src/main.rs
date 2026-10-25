@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     LogicalSize, PhysicalPosition,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
@@ -22,6 +22,42 @@ const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreen
      --disable-background-networking --disable-component-update --disable-gpu \
      --disable-sync --renderer-process-limit=1 --enable-low-end-device-mode";
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct Settings {
+    skin: String,
+    scale: f64,
+    autohide: bool,
+    float_opacity: f64,
+    float_on_top: bool,
+    float_at_start: bool,
+    blink: bool,
+    reactions: bool,
+    wave: bool,
+    wave_min_s: u64,
+    wave_max_s: u64,
+    yawn: bool,
+    yawn_idle_s: u64,
+    mood_min_s: u64,
+    mood_max_s: u64,
+    pomo_focus_min: u64,
+    pomo_rest_min: u64,
+    close_to_tray: bool,
+    auto_update: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
+            blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
+            mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
+        }
+    }
+}
+
+const SKINS: [&str; 10] = ["dog", "cat", "cover", "none", "trabajando", "programando", "tradeando", "descansando", "estudiando", "festejando"];
+
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct PlayerState {
     title: String,
@@ -35,6 +71,7 @@ struct PlayerState {
     skin: String,
     pomo_phase: String,
     pomo_left: u64,
+    cfg: Settings,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -52,69 +89,64 @@ struct AppState {
     pomo: Mutex<Pomo>,
     user_float: Mutex<bool>,      // el usuario quiere ver el flotante
     auto_hidden: Mutex<bool>,     // oculto automáticamente (juego / pantalla completa)
-    autohide_on: Mutex<bool>,
+    settings: Mutex<Settings>,
     pending_pos: Mutex<Option<(i32, i32)>>,
-    scale: Mutex<f64>,
     player: Mutex<PlayerState>,
     float_visible: Mutex<bool>,
-}
-
-fn skin_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("skin.txt"))
-}
-
-fn load_skin(app: &AppHandle) -> String {
-    skin_path(app)
-        .and_then(|p| fs::read_to_string(p).ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| matches!(s.as_str(), "dog" | "cat" | "cover" | "none" | "trabajando" | "programando" | "tradeando" | "descansando" | "estudiando" | "festejando"))
-        .unwrap_or_else(|| "dog".into())
-}
-
-fn set_skin(app: &AppHandle, skin: &str) {
-    app.state::<AppState>().player.lock().unwrap().skin = skin.into();
-    if let Some(p) = skin_path(app) {
-        if let Some(dir) = p.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
-        let _ = fs::write(p, skin);
-    }
 }
 
 const FLOAT_W: f64 = 340.0;
 const FLOAT_H: f64 = 385.0;
 
-fn scale_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("size.txt"))
+fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
 }
 
-fn load_scale(app: &AppHandle) -> f64 {
-    scale_path(app)
-        .and_then(|p| fs::read_to_string(p).ok())
-        .and_then(|s| s.trim().parse::<f64>().ok())
-        .map(|v| v.clamp(0.4, 1.2))
-        .unwrap_or(1.0)
+fn save_settings(app: &AppHandle) {
+    let json = serde_json::to_string_pretty(&*app.state::<AppState>().settings.lock().unwrap()).unwrap_or_default();
+    if let Some(p) = settings_path(app) {
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        let _ = fs::write(p, json);
+    }
+}
+
+// Lee settings.json; si no existe (versiones anteriores) toma lo guardado en los archivos sueltos.
+fn load_settings(app: &AppHandle) -> Settings {
+    if let Some(s) = settings_path(app).and_then(|p| fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<Settings>(&t).ok()) {
+        return s;
+    }
+    let mut s = Settings::default();
+    if let Some(v) = cfg_read(app, "skin.txt").filter(|v| SKINS.contains(&v.as_str())) { s.skin = v; }
+    if let Some(v) = cfg_read(app, "size.txt").and_then(|v| v.parse::<f64>().ok()) { s.scale = v.clamp(0.4, 1.2); }
+    if cfg_read(app, "autohide.txt").as_deref() == Some("off") { s.autohide = false; }
+    s
+}
+
+fn set_skin(app: &AppHandle, skin: &str) {
+    if !SKINS.contains(&skin) {
+        return;
+    }
+    app.state::<AppState>().player.lock().unwrap().skin = skin.into();
+    app.state::<AppState>().settings.lock().unwrap().skin = skin.into();
+    save_settings(app);
 }
 
 // Cambia el tamaño del flotante: la ventana y su contenido (zoom) escalan juntos.
 fn set_float_scale(app: &AppHandle, scale: f64) {
     let scale = scale.clamp(0.4, 1.2);
-    *app.state::<AppState>().scale.lock().unwrap() = scale;
+    app.state::<AppState>().settings.lock().unwrap().scale = scale;
     if let Some(w) = app.get_webview_window("float") {
         let _ = w.set_size(LogicalSize::new(FLOAT_W * scale, FLOAT_H * scale));
         let _ = w.set_zoom(scale);
     }
-    if let Some(p) = scale_path(app) {
-        if let Some(dir) = p.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
-        let _ = fs::write(p, format!("{scale:.2}"));
-    }
+    save_settings(app);
 }
 
 #[tauri::command]
 fn scale_float(app: AppHandle, delta: f64) {
-    let cur = *app.state::<AppState>().scale.lock().unwrap();
+    let cur = app.state::<AppState>().settings.lock().unwrap().scale;
     set_float_scale(&app, cur + delta);
 }
 
@@ -271,7 +303,7 @@ fn start_ticker(app: AppHandle) {
         std::thread::sleep(Duration::from_secs(1));
         pomo_tick(&app);
         let st = app.state::<AppState>();
-        let want = *st.autohide_on.lock().unwrap() && fullscreen_busy();
+        let want = st.settings.lock().unwrap().autohide && fullscreen_busy();
         let changed = {
             let mut a = st.auto_hidden.lock().unwrap();
             let c = *a != want;
@@ -308,6 +340,7 @@ fn get_state(state: tauri::State<AppState>) -> PlayerState {
     let mut p = state.player.lock().unwrap().clone();
     let pm = state.pomo.lock().unwrap();
     p.pomo_phase = match pm.phase { Phase::Off => "off", Phase::Focus => "focus", Phase::Rest => "rest" }.into();
+    p.cfg = state.settings.lock().unwrap().clone();
     p.pomo_left = if pm.phase == Phase::Off { 0 } else { pm.end.saturating_duration_since(Instant::now()).as_secs() };
     p
 }
@@ -357,6 +390,107 @@ async fn check_update(app: AppHandle, manual: bool) {
     }
 }
 
+#[derive(Serialize)]
+struct SettingsView {
+    settings: Settings,
+    autostart: bool,
+    version: String,
+}
+
+#[tauri::command]
+fn get_settings(app: AppHandle) -> SettingsView {
+    SettingsView {
+        settings: app.state::<AppState>().settings.lock().unwrap().clone(),
+        autostart: app.autolaunch().is_enabled().unwrap_or(false),
+        version: app.package_info().version.to_string(),
+    }
+}
+
+// Cambia un ajuste y aplica su efecto al momento. El valor llega como JSON desde la ventana de configuración.
+#[tauri::command]
+fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
+    let b = value.as_bool();
+    let n = value.as_f64();
+    {
+        let st = app.state::<AppState>();
+        let mut c = st.settings.lock().unwrap();
+        match key.as_str() {
+            "autohide" => if let Some(v) = b { c.autohide = v },
+            "float_opacity" => if let Some(v) = n { c.float_opacity = v.clamp(0.3, 1.0) },
+            "float_on_top" => if let Some(v) = b { c.float_on_top = v },
+            "float_at_start" => if let Some(v) = b { c.float_at_start = v },
+            "blink" => if let Some(v) = b { c.blink = v },
+            "reactions" => if let Some(v) = b { c.reactions = v },
+            "wave" => if let Some(v) = b { c.wave = v },
+            "wave_min_s" => if let Some(v) = n { c.wave_min_s = (v as u64).clamp(5, 600); c.wave_max_s = c.wave_max_s.max(c.wave_min_s) },
+            "wave_max_s" => if let Some(v) = n { c.wave_max_s = (v as u64).clamp(5, 900).max(c.wave_min_s) },
+            "yawn" => if let Some(v) = b { c.yawn = v },
+            "yawn_idle_s" => if let Some(v) = n { c.yawn_idle_s = (v as u64).clamp(20, 900) },
+            "mood_min_s" => if let Some(v) = n { c.mood_min_s = (v as u64).clamp(5, 300); c.mood_max_s = c.mood_max_s.max(c.mood_min_s) },
+            "mood_max_s" => if let Some(v) = n { c.mood_max_s = (v as u64).clamp(5, 600).max(c.mood_min_s) },
+            "pomo_focus_min" => if let Some(v) = n { c.pomo_focus_min = (v as u64).clamp(1, 180) },
+            "pomo_rest_min" => if let Some(v) = n { c.pomo_rest_min = (v as u64).clamp(1, 60) },
+            "close_to_tray" => if let Some(v) = b { c.close_to_tray = v },
+            "auto_update" => if let Some(v) = b { c.auto_update = v },
+            _ => {}
+        }
+    }
+    match key.as_str() {
+        "skin" => if let Some(v) = value.as_str() { set_skin(&app, v) },
+        "scale" => if let Some(v) = n { set_float_scale(&app, v) },
+        "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
+        "autostart" => if let Some(v) = b {
+            let al = app.autolaunch();
+            let _ = if v { al.enable() } else { al.disable() };
+        },
+        _ => {}
+    }
+    save_settings(&app);
+}
+
+#[tauri::command]
+fn settings_action(app: AppHandle, action: String) {
+    match action.as_str() {
+        "pomo_start" => {
+            let st = app.state::<AppState>();
+            let (f, r) = { let c = st.settings.lock().unwrap(); (c.pomo_focus_min, c.pomo_rest_min) };
+            start_pomo(&app, f, r);
+        }
+        "pomo_stop" => stop_pomo(&app),
+        "check_update" => { let a = app.clone(); tauri::async_runtime::spawn(check_update(a, true)); }
+        "reset_pos" => {
+            if let Some(w) = app.get_webview_window("float") { let _ = w.center(); }
+        }
+        "reset_settings" => {
+            *app.state::<AppState>().settings.lock().unwrap() = Settings::default();
+            save_settings(&app);
+            set_float_scale(&app, 1.0);
+            set_skin(&app, "dog");
+            if let Some(w) = app.get_webview_window("float") { let _ = w.set_always_on_top(true); }
+        }
+        _ => {}
+    }
+}
+
+fn open_settings(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    #[allow(unused_mut)]
+    let mut b = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+        .title("Lite Music — Configuración")
+        .inner_size(800.0, 600.0)
+        .min_inner_size(660.0, 480.0)
+        .center();
+    #[cfg(windows)]
+    {
+        b = b.additional_browser_args(BROWSER_ARGS);
+    }
+    let _ = b.build();
+}
+
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
 }
@@ -387,8 +521,8 @@ async fn tokio_sleep(secs: u64) {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float])
-        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), autohide_on: Mutex::new(true), pending_pos: Mutex::new(None), scale: Mutex::new(1.0), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
+        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action])
+        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
@@ -432,7 +566,16 @@ fn main() {
             {
                 fb = fb.additional_browser_args(BROWSER_ARGS);
             }
+            *app.state::<AppState>().settings.lock().unwrap() = load_settings(app.handle());
+            let cfg0 = app.state::<AppState>().settings.lock().unwrap().clone();
+            fb = fb.always_on_top(cfg0.float_on_top);
             let fwin = fb.build()?;
+            set_float_scale(app.handle(), cfg0.scale);
+            set_skin(app.handle(), &cfg0.skin);
+            if !cfg0.float_at_start {
+                *app.state::<AppState>().user_float.lock().unwrap() = false;
+                apply_float_visibility(app.handle());
+            }
             restore_float_pos(app.handle(), &fwin);
             let ah = app.handle().clone();
             fwin.on_window_event(move |e| {
@@ -440,16 +583,18 @@ fn main() {
                     *ah.state::<AppState>().pending_pos.lock().unwrap() = Some((p.x, p.y));
                 }
             });
-            *app.state::<AppState>().autohide_on.lock().unwrap() = cfg_read(app.handle(), "autohide.txt").as_deref() != Some("off");
-            set_float_scale(app.handle(), load_scale(app.handle()));
-            set_skin(app.handle(), &load_skin(app.handle()));
 
             // Cerrar = ocultar a la bandeja; la música sigue sonando.
             let w = window.clone();
+            let wapp = app.handle().clone();
             window.on_window_event(move |e| {
                 if let WindowEvent::CloseRequested { api, .. } = e {
-                    api.prevent_close();
-                    hide(&w);
+                    if wapp.state::<AppState>().settings.lock().unwrap().close_to_tray {
+                        api.prevent_close();
+                        hide(&w);
+                    } else {
+                        wapp.exit(0);
+                    }
                 }
             });
 
@@ -470,22 +615,19 @@ fn main() {
             let m_estu = MenuItem::with_id(app, "estudiando", "Mood: estudiando", true, None::<&str>)?;
             let m_fest = MenuItem::with_id(app, "festejando", "Mood: festejando", true, None::<&str>)?;
             let m_skin = Submenu::with_items(app, "Aspecto del flotante", true, &[&m_dog, &m_cat, &m_cover, &m_none, &PredefinedMenuItem::separator(app)?, &m_trab, &m_prog, &m_trad, &m_desc, &m_estu, &m_fest])?;
-            let m_auto = CheckMenuItem::with_id(app, "auto", "Iniciar con Windows", true, app.autolaunch().is_enabled().unwrap_or(false), None::<&str>)?;
-            let m_auto_c = m_auto.clone();
             let s50 = MenuItem::with_id(app, "sz50", "Muy pequeño (50%)", true, None::<&str>)?;
             let s70 = MenuItem::with_id(app, "sz70", "Pequeño (70%)", true, None::<&str>)?;
             let s100 = MenuItem::with_id(app, "sz100", "Normal (100%)", true, None::<&str>)?;
             let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s50, &s70, &s100])?;
+            let m_cfg = MenuItem::with_id(app, "cfg", "Configuración…", true, None::<&str>)?;
             let m_upd = MenuItem::with_id(app, "upd", "Buscar actualizaciones", true, None::<&str>)?;
             let p1 = MenuItem::with_id(app, "pomo25", "Iniciar 25 min estudio / 5 descanso", true, None::<&str>)?;
             let p2 = MenuItem::with_id(app, "pomo50", "Iniciar 50 min estudio / 10 descanso", true, None::<&str>)?;
             let p3 = MenuItem::with_id(app, "pomo0", "Detener", true, None::<&str>)?;
             let m_pomo = Submenu::with_items(app, "Pomodoro", true, &[&p1, &p2, &p3])?;
-            let m_hide = CheckMenuItem::with_id(app, "hide", "Ocultar flotante en juegos / pantalla completa", true, *app.state::<AppState>().autohide_on.lock().unwrap(), None::<&str>)?;
-            let m_hide_c = m_hide.clone();
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &m_hide, &sep, &m_pomo, &sep, &m_auto, &m_upd, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &m_pomo, &sep, &m_cfg, &m_upd, &sep, &m_quit])?;
 
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -509,18 +651,10 @@ fn main() {
                     "pomo25" => start_pomo(app, 25, 5),
                     "pomo50" => start_pomo(app, 50, 10),
                     "pomo0" => stop_pomo(app),
-                    "hide" => {
-                        let on = m_hide_c.is_checked().unwrap_or(true);
-                        *app.state::<AppState>().autohide_on.lock().unwrap() = on;
-                        cfg_write(app, "autohide.txt", if on { "on" } else { "off" });
-                    }
+                    "cfg" => open_settings(app),
                     "upd" => {
                         let a = app.clone();
                         tauri::async_runtime::spawn(check_update(a, true));
-                    }
-                    "auto" => {
-                        let al = app.autolaunch();
-                        let _ = if m_auto_c.is_checked().unwrap_or(false) { al.enable() } else { al.disable() };
                     }
                     "quit" => app.exit(0),
                     _ => {}
@@ -543,7 +677,9 @@ fn main() {
             let a = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 tokio_sleep(8).await;
-                check_update(a, false).await;
+                if a.state::<AppState>().settings.lock().unwrap().auto_update {
+                    check_update(a, false).await;
+                }
             });
 
             Ok(())

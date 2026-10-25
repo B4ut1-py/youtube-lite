@@ -207,16 +207,18 @@ const speakerShape = (c, ox, oy, col) => {
 };
 
 /* ---------- Estado ---------- */
+let CFG = { blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90, mood_min_s: 15, mood_max_s: 30, float_opacity: 1 };
 let skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '';
 let cover = '';
 function render(st) {
+  if (st.cfg) { CFG = st.cfg; document.body.style.opacity = CFG.float_opacity; }
   if (st.skin !== skin) {
     skin = st.skin; sleeping = null;
     document.body.className = document.body.className.replace(/\b(skin|kind)-\S+/g, '').trim();
     kind = ['dog', 'cat'].includes(skin) ? 'animal' : (skin === 'cover' || skin === 'none') ? skin : 'mood';
     document.body.classList.add('skin-' + skin, 'kind-' + kind);
     if (kind === 'animal') drawBody(skin);
-    if (kind === 'mood') { mood = { mood: skin, action: null, next: 15 + Math.random() * 15 }; moodStart(); }
+    if (kind === 'mood') { mood = { mood: skin, action: null, next: CFG.mood_min_s + Math.random() * (CFG.mood_max_s - CFG.mood_min_s) }; moodStart(); }
     else moodStop();
     kick();
   }
@@ -254,7 +256,7 @@ function render(st) {
 }
 // Parpadeo: cada 2.5-6 s mientras suena, cierra los ojos ~140 ms (a veces dos veces seguidas).
 function blinkOnce(done) {
-  if (!playing || kind !== 'animal') return done();
+  if (!playing || kind !== 'animal' || !CFG.blink) return done();
   drawHead(skin, false, null, true);
   setTimeout(() => { if (playing) drawHead(skin, false); done(); }, 140);
 }
@@ -267,7 +269,8 @@ function scheduleBlink() {
 scheduleBlink();
 // Saludo ocasional con la patita (cada 25-55 s, solo mientras suena y sin otra reacción en curso).
 function scheduleWave() {
-  setTimeout(() => { if (playing && kind === 'animal' && !fx) trigger('wave'); scheduleWave(); }, 25000 + Math.random() * 30000);
+  const d = CFG.wave_min_s + Math.random() * Math.max(0, CFG.wave_max_s - CFG.wave_min_s);
+  setTimeout(() => { if (playing && kind === 'animal' && !fx) trigger('wave'); scheduleWave(); }, d * 1000);
 }
 scheduleWave();
 let ppDrawn = false, draggingVol = false, shownTitle = null;
@@ -316,7 +319,7 @@ const PERIOD = 3.2;                       // segundos por vaivén completo (lent
 const FX_DUR = { yawn: 2.8, volup: 1.1, voldown: 1.1, wave: 2.8, pause: 3, resume: 0.7, song: 1.4, next: 0.7, prev: 0.7 };
 // Reacciones a las acciones del usuario: pausa, reanudar, canción nueva, siguiente, anterior.
 function leaveFx(f) { if (!f) return; if (f.name === 'wave') drawBody(skin); if (f.name === 'yawn') drawHead(skin, sleeping); }
-function trigger(name) { if (kind !== 'animal') return; leaveFx(fx); if (name === 'yawn') drawHead(skin, false, null, true, true); fx = { name, t0: performance.now() / 1000 }; kick(); }
+function trigger(name) { if (kind !== 'animal') return; if (!(name === 'wave' ? CFG.wave : name === 'yawn' ? CFG.yawn : CFG.reactions)) return; leaveFx(fx); if (name === 'yawn') drawHead(skin, false, null, true, true); fx = { name, t0: performance.now() / 1000 }; kick(); }
 function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
 const glyphZ = (c, x, y, s) => { c.fillStyle = '#fff'; c.fillRect(x, y, s, 1); c.fillRect(x, y + s - 1, s, 1); for (let i = 0; i < s; i++) c.fillRect(x + s - 1 - i, y + i, 1, 1); };
 const glyphNote = (c, x, y) => { c.fillStyle = '#000'; c.fillRect(x + 2, y - 1, 1, 6); c.fillRect(x + 2, y - 1, 4, 2); c.fillRect(x - 1, y + 3, 4, 3); c.fillStyle = '#fff'; c.fillRect(x + 3, y, 1, 5); c.fillRect(x + 3, y, 3, 1); c.fillRect(x, y + 4, 3, 2); };
@@ -423,7 +426,7 @@ let lastActivity = Date.now(), lastYawn = 0, lv = null, lastVolFx = 0, curVol = 
 // Bostezo: si llevas 90 s sin tocar el flotante y suena música (como máximo uno cada 2 min).
 setInterval(() => {
   const now = Date.now();
-  if (playing && kind === 'animal' && !fx && now - lastActivity > 90000 && now - lastYawn > 120000) { lastYawn = now; trigger('yawn'); }
+  if (playing && kind === 'animal' && !fx && now - lastActivity > CFG.yawn_idle_s * 1000 && now - lastYawn > 120000) { lastYawn = now; trigger('yawn'); }
 }, 5000);
 const setVol = (e) => {
   const r = vbar.getBoundingClientRect();

@@ -249,7 +249,7 @@ const MOODS = {
 };
 // Estado de una escena: pose base y, cada 15-30 s, una acción al azar que dura unos segundos.
 function moodTick(st, now) {
-  if (st.action && now >= st.action.start + st.action.dur) { st.action = null; st.next = now + 15 + Math.random() * 15; }
+  if (st.action && now >= st.action.start + st.action.dur) { st.action = null; st.next = now + CFG.mood_min_s + Math.random() * (CFG.mood_max_s - CFG.mood_min_s); }
   if (!st.action && now >= st.next) {
     const [name, dur] = MOODS[st.mood].actions[Math.floor(Math.random() * 2)];
     st.action = { name, dur, start: now, u: 0 };
