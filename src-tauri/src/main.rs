@@ -192,6 +192,31 @@ fn open_link(which: String) {
         "linkedin" => "https://www.linkedin.com/in/bautista-rubio/",
         _ => return,
     };
+    open_in_browser(url);
+}
+
+// Sitios que pueden abrirse dentro de la ventana: los servicios y sus inicios de sesión. El resto va al navegador:
+// sin barra de direcciones no se sabría en qué página se está (p. ej. un inicio de sesión falso).
+fn allowed_in_app(u: &tauri::Url) -> bool {
+    if u.scheme() == "about" {
+        return true;
+    }
+    let (true, Some(host)) = (u.scheme() == "https", u.host_str()) else { return false };
+    let labels: Vec<&str> = host.split('.').collect();
+    // google.com, google.com.ar, google.co.uk, google.de...: Google inicia sesión pasando por el dominio de cada país.
+    let google = labels.iter().position(|l| *l == "google").map_or(false, |i| match &labels[i + 1..] {
+        ["com"] => true,
+        [cc] | ["com" | "co", cc] => cc.len() == 2,
+        _ => false,
+    });
+    google || ["youtube.com", "spotify.com", "facebook.com", "apple.com"].iter().any(|d| host == *d || host.ends_with(&format!(".{d}")))
+}
+
+// Abre una dirección web en el navegador predeterminado (solo http/https: nunca un archivo o programa).
+fn open_in_browser(url: &str) {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return;
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -1063,7 +1088,22 @@ fn main() {
             .inner_size(1100.0, 720.0)
             .min_inner_size(420.0, 500.0)
             .user_agent(&user_agent())
-            .initialization_script(include_str!("inject.js"));
+            .initialization_script(include_str!("inject.js"))
+            .on_navigation(|u| {
+                let ok = allowed_in_app(u);
+                if !ok {
+                    open_in_browser(u.as_str());
+                }
+                ok
+            })
+            .on_new_window(|u, _| {
+                if allowed_in_app(&u) {
+                    tauri::webview::NewWindowResponse::Allow
+                } else {
+                    open_in_browser(u.as_str());
+                    tauri::webview::NewWindowResponse::Deny
+                }
+            });
 
             // Menos procesos y sin servicios de red/actualización de fondo de WebView2.
             #[cfg(windows)]
@@ -1202,4 +1242,20 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error al iniciar Lite Music");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn allowed_in_app() {
+        let ok = |s: &str| super::allowed_in_app(&s.parse().unwrap());
+        for s in ["https://music.youtube.com/watch?v=1", "https://accounts.google.com/x", "https://accounts.google.com.ar/x",
+                  "https://accounts.google.co.uk/x", "https://www.google.de/x", "https://accounts.spotify.com/x", "about:blank"] {
+            assert!(ok(s), "{s}");
+        }
+        for s in ["http://music.youtube.com/", "https://evil.com/", "https://google.evil.com/", "https://notyoutube.com/",
+                  "https://youtube.com.evil.io/", "https://google.com.evil.io/", "file:///C:/x"] {
+            assert!(!ok(s), "{s}");
+        }
+    }
 }
