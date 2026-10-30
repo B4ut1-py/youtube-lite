@@ -74,23 +74,41 @@
   const T = (id) => `[data-testid="${id}"]`;
   const spMedia = () => document.querySelector('audio, video');
   let spPrev = { pos: -1, at: 0, playing: false };
+  const qs = (sel, root = document) => root.querySelector(sel);
+  // Se prueba cada fuente en orden; la interfaz de Spotify cambia a menudo, así que ninguna es imprescindible.
   const spState = () => {
-    const w = document.querySelector(T('now-playing-widget'));
-    const pos = toSec((document.querySelector(T('playback-position'))?.textContent || '0:00').trim() || '0:00');
-    const dur = toSec((document.querySelector(T('playback-duration'))?.textContent || '0:00').trim() || '0:00');
+    const md = navigator.mediaSession?.metadata;
+    const w = qs(T('now-playing-widget')) || qs(T('now-playing-bar')) || qs('footer');
+    const fromTitle = (document.title || '').split(' • ');                // "Canción • Artista" mientras suena
+    const title = md?.title || qs(T('context-item-link'), w || document)?.textContent || qs('a[href*="/track/"]', w || document)?.textContent
+      || (fromTitle.length > 1 ? fromTitle[0] : '');
+    const artists = [...(w || document).querySelectorAll('a[href*="/artist/"]')].map((a) => a.textContent).filter(Boolean);
+    const artist = md?.artist || [...new Set(artists)].join(', ') || (fromTitle.length > 1 ? fromTitle.slice(1).join(' • ') : '');
+    const art = md?.artwork || [];
+    const px = (a) => parseInt((a.sizes || '0').split('x')[0], 10) || 0;
+    const cover = (art.length ? art.reduce((b, a) => (px(a) >= px(b) ? a : b)).src : '') || qs('img[src*="scdn.co"]', w || document)?.src || '';
+    // tiempos: textos "1:05" / "3:30" de la barra; si no están, la barra deslizante; si no, el elemento de audio
+    const tx = (id) => (qs(T(id))?.textContent || '').trim();
+    let pos = /^\d+(:\d+)*$/.test(tx('playback-position')) ? toSec(tx('playback-position')) : -1;
+    let dur = /^\d+(:\d+)*$/.test(tx('playback-duration')) ? toSec(tx('playback-duration')) : -1;
+    const m = spMedia();
+    if (dur < 0) {
+      const sl = qs('footer input[type=range][max]', document);
+      const sm = sl && num(sl.max) > 1000 ? 1000 : 1;                       // en milisegundos o en segundos
+      if (sl && num(sl.max) > 100) { dur = num(sl.max) / sm; pos = num(sl.value) / sm; }
+      else if (m && Number.isFinite(m.duration) && m.duration > 0) { dur = m.duration; pos = m.currentTime; }
+    }
+    pos = Math.max(0, pos); dur = Math.max(0, dur);
     const ps = navigator.mediaSession?.playbackState;
     const now = Date.now();
     let playing;
-    if (ps === 'playing' || ps === 'paused') playing = ps === 'playing';
+    if (m && m.readyState > 0) playing = !m.paused && !m.ended;
+    else if (ps === 'playing' || ps === 'paused') playing = ps === 'playing';
     else {                                                     // sin dato fiable: si el tiempo avanza, suena
       if (pos !== spPrev.pos) { spPrev = { pos, at: now, playing: pos > spPrev.pos && spPrev.pos >= 0 }; }
       playing = spPrev.playing && now - spPrev.at < 1500;
     }
-    const img = w?.querySelector('img[src*="scdn.co"]')?.src || '';
-    const artists = [...(w?.querySelectorAll('a[href*="/artist/"]') || [])].map((a) => a.textContent).join(', ');
-    return {
-      title: w?.querySelector(T('context-item-link'))?.textContent || '', artist: artists, cover: img, playing, pos, dur,
-    };
+    return { title, artist, cover, playing, pos, dur };
   };
   const spSeek = (f) => {
     const bar = document.querySelector(T('playback-progressbar'));

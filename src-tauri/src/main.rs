@@ -149,6 +149,16 @@ fn set_source(app: &AppHandle, source: &str) {
     if let Some(w) = main_window(app) {
         let _ = w.navigate(source_url(source).parse().unwrap());
         show(app);
+        // Cuando la página nueva ya cargó, se apaga lo que quedó vivo del servicio anterior.
+        let a = app.clone();
+        std::thread::spawn(move || {
+            for secs in [6, 25] {
+                std::thread::sleep(Duration::from_secs(secs));
+                if let Some(w) = main_window(&a) {
+                    stop_service_workers(&w);
+                }
+            }
+        });
     }
 }
 
@@ -506,6 +516,7 @@ fn start_ticker(app: AppHandle) {
                 }
                 let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(180);
                 if due {
+                    stop_service_workers(&w);
                     set_webview_memory(&w, false);
                     std::thread::sleep(Duration::from_millis(300));
                     set_webview_memory(&w, true);
@@ -848,6 +859,24 @@ fn wake(app: &AppHandle) {
         }
     }
 }
+
+// Detiene los service workers (procesos de fondo de la página, p. ej. el de YouTube Music que queda vivo tras cambiar
+// a Spotify: ~130 MB). Se reinician solos si la página que está abierta los necesita.
+#[cfg(windows)]
+fn stop_service_workers(w: &WebviewWindow) {
+    use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
+    use windows_core::HSTRING;
+    let _ = w.with_webview(move |pw| unsafe {
+        if let Ok(core) = pw.controller().CoreWebView2() {
+            for m in ["ServiceWorker.enable", "ServiceWorker.stopAllWorkers", "ServiceWorker.disable"] {
+                let h = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|_, _| Ok(())));
+                let _ = core.CallDevToolsProtocolMethod(&HSTRING::from(m), &HSTRING::from("{}"), &h);
+            }
+        }
+    });
+}
+#[cfg(not(windows))]
+fn stop_service_workers(_w: &WebviewWindow) {}
 
 // Entra o sale del modo ahorro de la ventana principal según los ajustes.
 fn set_main_idle(app: &AppHandle, idle: bool) {
