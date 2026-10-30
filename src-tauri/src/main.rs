@@ -106,6 +106,7 @@ struct AppState {
     pending_pos: Mutex<Option<(i32, i32)>>,
     player: Mutex<PlayerState>,
     float_visible: Mutex<bool>,
+    pos_at: Mutex<Instant>,        // cuándo se informó por última vez el tiempo de la canción
     last_report: Mutex<Instant>,   // última vez que la página de música dio señales de vida
 }
 
@@ -572,6 +573,7 @@ fn start_ticker(app: AppHandle) {
 #[tauri::command]
 fn report_state(state: tauri::State<AppState>, title: String, artist: String, cover: String, vol: f64, playing: bool, pos: f64, dur: f64) -> bool {
     *state.last_report.lock().unwrap() = Instant::now();
+    *state.pos_at.lock().unwrap() = Instant::now();
     let mut p = state.player.lock().unwrap();
     p.title = title;
     p.artist = artist;
@@ -586,6 +588,11 @@ fn report_state(state: tauri::State<AppState>, title: String, artist: String, co
 #[tauri::command]
 fn get_state(state: tauri::State<AppState>) -> PlayerState {
     let mut p = state.player.lock().unwrap().clone();
+    // La página ya no informa cada 0,5 s: el tiempo se calcula aquí a partir del último informe.
+    if p.playing {
+        let el = state.pos_at.lock().unwrap().elapsed().as_secs_f64().min(120.0);
+        p.pos = if p.dur > 0.0 { (p.pos + el).min(p.dur) } else { p.pos + el };
+    }
     let pm = state.pomo.lock().unwrap();
     p.pomo_phase = match pm.phase { Phase::Off => "off", Phase::Focus => "focus", Phase::Rest => "rest" }.into();
     p.cfg = state.settings.lock().unwrap().clone();
@@ -604,6 +611,7 @@ fn control(app: AppHandle, action: String, value: Option<f64>) {
         _ => return,
     };
     js(&app, &code);
+    js(&app, "window.__lm&&window.__lm.kick&&window.__lm.kick(400)");
 }
 
 // Elementos de menú que avisan de una versión nueva (barra superior de la ventana y bandeja).
@@ -991,7 +999,7 @@ fn on_menu(app: &AppHandle, id: &str) {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action, choose_source, open_link])
-        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()) })
+        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()), pos_at: Mutex::new(Instant::now()) })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))

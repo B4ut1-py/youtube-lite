@@ -149,30 +149,40 @@
     },
   };
 
-  // Informa de la canción al reproductor flotante (0,5 s si se ve, 5 s si no)
+  // Informa de la canción al reproductor flotante. Solo se envía cuando algo CAMBIA (canción, pausa, duración, volumen,
+  // un salto en el tiempo) o como señal de vida cada 30 s; entre informes el flotante calcula el tiempo por su cuenta.
+  // Revisar la página es barato (cada 2 s si el flotante se ve, 5 s si no); enviar mensajes es lo que cuesta memoria.
   const invoke = window.__TAURI_INTERNALS__?.invoke;
   if (!invoke) return;
-  const tick = async () => {
-    let wanted = true;
-    try {
-      if (SP) {
-        const st = spState(), m = spMedia();
-        wanted = await invoke('report_state', { vol: m ? m.volume : 1, ...st });
-        setTimeout(tick, wanted ? 500 : 5000);
-        return;
-      }
-      const md = navigator.mediaSession?.metadata;
-      const v = document.querySelector('video'); if (v) applyVol(v);
-      const art = md?.artwork || [];
-      const px = (a) => parseInt((a.sizes || '0').split('x')[0], 10) || 0;
-      const cover = art.length ? art.reduce((b, a) => (px(a) >= px(b) ? a : b)).src : '';
-      wanted = await invoke('report_state', {
-        title: md?.title || '', artist: md?.artist || '', cover, vol: v ? v.volume : 1,
-        playing: !!v && !v.paused && !v.ended,
-        ...readTimes(v),
-      });
-    } catch (_) {}
-    setTimeout(tick, wanted ? 500 : 5000);
+  let wanted = true, timer = 0, sent = null, sentAt = 0;
+  const snapshot = () => {
+    if (SP) { const m = spMedia(); return { vol: m ? m.volume : 1, ...spState() }; }
+    const md = navigator.mediaSession?.metadata;
+    const v = document.querySelector('video'); if (v) applyVol(v);
+    const art = md?.artwork || [];
+    const px = (a) => parseInt((a.sizes || '0').split('x')[0], 10) || 0;
+    const cover = art.length ? art.reduce((b, a) => (px(a) >= px(b) ? a : b)).src : '';
+    return { title: md?.title || '', artist: md?.artist || '', cover, vol: v ? v.volume : 1, playing: !!v && !v.paused && !v.ended, ...readTimes(v) };
   };
+  const changed = (n) => {
+    if (!sent) return true;
+    if (n.title !== sent.title || n.artist !== sent.artist || n.cover !== sent.cover || n.playing !== sent.playing) return true;
+    if (Math.abs(n.dur - sent.dur) > 1 || Math.abs(n.vol - sent.vol) > 0.01) return true;
+    const now = Date.now();
+    const expected = sent.pos + (n.playing ? (now - sentAt) / 1000 : 0);
+    return Math.abs(n.pos - expected) > 3 || now - sentAt > 30000;          // salto de tiempo o señal de vida
+  };
+  const tick = async () => {
+    clearTimeout(timer);
+    try {
+      const n = snapshot();
+      if (changed(n)) { sent = n; sentAt = Date.now(); wanted = await invoke('report_state', n); }
+    } catch (_) {}
+    timer = setTimeout(tick, wanted ? 2000 : 5000);
+  };
+  // Cambios inmediatos: eventos del audio/vídeo y órdenes desde el flotante o la bandeja.
+  const kick = (ms = 250) => { clearTimeout(timer); timer = setTimeout(tick, ms); };
+  ['play', 'pause', 'ended', 'loadedmetadata', 'emptied'].forEach((ev) => document.addEventListener(ev, () => kick(), true));
+  window.__lm.kick = kick;
   tick();
 })();
