@@ -12,7 +12,12 @@ use tauri::{
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
-const HOME_URL: &str = "https://music.youtube.com";
+const YTM_URL: &str = "https://music.youtube.com";
+const SPOTIFY_URL: &str = "https://open.spotify.com";
+
+fn source_url(source: &str) -> &'static str {
+    if source == "spotify" { SPOTIFY_URL } else { YTM_URL }
+}
 // User-Agent de Chrome: evita que Google bloquee el inicio de sesión por "navegador no seguro".
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -49,6 +54,7 @@ struct Settings {
     destroy_float: bool,
     suspend_idle: bool,
     suspend_after_s: u64,
+    source: String,
 }
 
 impl Default for Settings {
@@ -57,7 +63,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, suspend_idle: true, suspend_after_s: 90,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, suspend_idle: true, suspend_after_s: 90, source: "ytm".into(),
         }
     }
 }
@@ -128,6 +134,20 @@ fn load_settings(app: &AppHandle) -> Settings {
     if let Some(v) = cfg_read(app, "size.txt").and_then(|v| v.parse::<f64>().ok()) { s.scale = v.clamp(0.4, 1.2); }
     if cfg_read(app, "autohide.txt").as_deref() == Some("off") { s.autohide = false; }
     s
+}
+
+// Cambia entre YouTube Music y Spotify: la misma ventana navega al otro sitio (nunca hay dos páginas cargadas).
+fn set_source(app: &AppHandle, source: &str) {
+    if source != "ytm" && source != "spotify" {
+        return;
+    }
+    app.state::<AppState>().settings.lock().unwrap().source = source.into();
+    save_settings(app);
+    wake(app);
+    if let Some(w) = main_window(app) {
+        let _ = w.navigate(source_url(source).parse().unwrap());
+        show(app);
+    }
 }
 
 fn set_skin(app: &AppHandle, skin: &str) {
@@ -567,6 +587,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
     match key.as_str() {
         "skin" => if let Some(v) = value.as_str() { set_skin(&app, v) },
         "scale" => if let Some(v) = n { set_float_scale(&app, v) },
+        "source" => if let Some(v) = value.as_str() { set_source(&app, v) },
         "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
         "autostart" => if let Some(v) = b {
             let al = app.autolaunch();
@@ -741,11 +762,13 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
         .setup(|app| {
+            *app.state::<AppState>().settings.lock().unwrap() = load_settings(app.handle());
+            let start_url = source_url(&app.state::<AppState>().settings.lock().unwrap().source);
             #[allow(unused_mut)]
             let mut builder = WebviewWindowBuilder::new(
                 app,
                 "main",
-                WebviewUrl::External(HOME_URL.parse().unwrap()),
+                WebviewUrl::External(start_url.parse().unwrap()),
             )
             .title("Lite Music")
             .inner_size(1100.0, 720.0)
@@ -766,7 +789,6 @@ fn main() {
             }
 
             // Reproductor flotante
-            *app.state::<AppState>().settings.lock().unwrap() = load_settings(app.handle());
             let cfg0 = app.state::<AppState>().settings.lock().unwrap().clone();
             set_skin(app.handle(), &cfg0.skin);
             if cfg0.float_at_start {
@@ -811,6 +833,9 @@ fn main() {
             let s70 = MenuItem::with_id(app, "sz70", "Pequeño (70%)", true, None::<&str>)?;
             let s100 = MenuItem::with_id(app, "sz100", "Normal (100%)", true, None::<&str>)?;
             let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s50, &s70, &s100])?;
+            let src_y = MenuItem::with_id(app, "src_ytm", "YouTube Music", true, None::<&str>)?;
+            let src_s = MenuItem::with_id(app, "src_spotify", "Spotify", true, None::<&str>)?;
+            let m_src = Submenu::with_items(app, "Servicio de música", true, &[&src_y, &src_s])?;
             let m_cfg = MenuItem::with_id(app, "cfg", "Configuración…", true, None::<&str>)?;
             let m_upd = MenuItem::with_id(app, "upd", "Buscar actualizaciones", true, None::<&str>)?;
             let p1 = MenuItem::with_id(app, "pomo25", "Iniciar 25 min estudio / 5 descanso", true, None::<&str>)?;
@@ -819,7 +844,7 @@ fn main() {
             let m_pomo = Submenu::with_items(app, "Pomodoro", true, &[&p1, &p2, &p3])?;
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_float, &m_skin, &m_size, &m_pomo, &sep, &m_cfg, &m_upd, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_src, &m_float, &m_skin, &m_size, &m_pomo, &sep, &m_cfg, &m_upd, &sep, &m_quit])?;
 
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -831,6 +856,8 @@ fn main() {
                     "pp" => js(app, "window.__lm&&window.__lm.playPause()"),
                     "next" => js(app, "window.__lm&&window.__lm.next()"),
                     "prev" => js(app, "window.__lm&&window.__lm.prev()"),
+                    "src_ytm" => set_source(app, "ytm"),
+                    "src_spotify" => set_source(app, "spotify"),
                     "float" => toggle_float(app),
                     "sz50" => set_float_scale(app, 0.5),
                     "sz70" => set_float_scale(app, 0.7),

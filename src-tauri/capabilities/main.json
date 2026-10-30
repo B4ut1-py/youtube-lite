@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "youtube-page",
-  "description": "La página de YouTube Music solo puede enviar el estado de reproducción.",
+  "description": "Las páginas de YouTube Music y Spotify solo puede enviar el estado de reproducción.",
   "windows": ["main"],
-  "remote": { "urls": ["https://music.youtube.com/*"] },
+  "remote": { "urls": ["https://music.youtube.com/*", "https://open.spotify.com/*"] },
   "permissions": ["allow-report-state"]
 }

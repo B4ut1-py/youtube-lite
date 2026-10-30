@@ -1,6 +1,12 @@
-// Se ejecuta en cada página cargada en la ventana. Solo actúa en YouTube Music.
+// Se ejecuta en cada página cargada en la ventana. Solo actúa en YouTube Music y en Spotify.
 (() => {
-  if (location.hostname !== 'music.youtube.com') return;
+  const SP = location.hostname === 'open.spotify.com';
+  // El inicio de sesión con Google/Spotify abre una ventana emergente: aquí se hace en la misma ventana.
+  if (/^(accounts\.(spotify|google)\.com|open\.spotify\.com)$/.test(location.hostname)) {
+    const open0 = window.open;
+    window.open = (u, ...r) => { if (u && /^https:\/\/(accounts\.(spotify|google)\.com|open\.spotify\.com)\//.test(String(u))) { location.href = u; return null; } return open0.call(window, u, ...r); };
+  }
+  if (location.hostname !== 'music.youtube.com' && !SP) return;
 
   // Única modificación visual: con la ventana oculta se pausan animaciones para gastar menos CPU.
   const css = `
@@ -56,7 +62,49 @@
     return { pos: num(v?.currentTime), dur: num(v?.duration) };
   };
   const click = (sel) => document.querySelector(sel)?.click();
-  window.__lm = {
+
+  // ---- Spotify: se lee el reproductor de la página (barra inferior) y se pulsan sus botones ----
+  const T = (id) => `[data-testid="${id}"]`;
+  const spMedia = () => document.querySelector('audio, video');
+  let spPrev = { pos: -1, at: 0, playing: false };
+  const spState = () => {
+    const w = document.querySelector(T('now-playing-widget'));
+    const pos = toSec((document.querySelector(T('playback-position'))?.textContent || '0:00').trim() || '0:00');
+    const dur = toSec((document.querySelector(T('playback-duration'))?.textContent || '0:00').trim() || '0:00');
+    const ps = navigator.mediaSession?.playbackState;
+    const now = Date.now();
+    let playing;
+    if (ps === 'playing' || ps === 'paused') playing = ps === 'playing';
+    else {                                                     // sin dato fiable: si el tiempo avanza, suena
+      if (pos !== spPrev.pos) { spPrev = { pos, at: now, playing: pos > spPrev.pos && spPrev.pos >= 0 }; }
+      playing = spPrev.playing && now - spPrev.at < 1500;
+    }
+    const img = w?.querySelector('img[src*="scdn.co"]')?.src || '';
+    const artists = [...(w?.querySelectorAll('a[href*="/artist/"]') || [])].map((a) => a.textContent).join(', ');
+    return {
+      title: w?.querySelector(T('context-item-link'))?.textContent || '', artist: artists, cover: img, playing, pos, dur,
+    };
+  };
+  const spSeek = (f) => {
+    const bar = document.querySelector(T('playback-progressbar'));
+    if (!bar) return;
+    const r = bar.getBoundingClientRect(); const x = r.left + r.width * f, y = r.top + r.height / 2;
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((t) =>
+      bar.dispatchEvent(new MouseEvent(t, { bubbles: true, clientX: x, clientY: y, view: window })));
+  };
+
+  window.__lm = SP ? {
+    playPause: () => click(T('control-button-playpause')),
+    next: () => click(T('control-button-skip-forward')),
+    prev: () => click(T('control-button-skip-back')),
+    setVolume: (f) => { const m = spMedia(); if (m) m.volume = Math.min(1, Math.max(0, f)); },
+    play: () => { if (!spState().playing) click(T('control-button-playpause')); },
+    pause: () => { if (spState().playing) click(T('control-button-playpause')); },
+    times: () => { const s = spState(); return { pos: s.pos, dur: s.dur }; },
+    seek: (f) => spSeek(f),
+    // En Spotify solo se pausan las animaciones; la interfaz no se oculta (no se ha comprobado que siga sonando).
+    setHidden: (h) => { const r = document.documentElement; if (r) r.classList.toggle('lm-hidden', h); },
+  } : {
     playPause: () => {
       const v = document.querySelector('video');
       if (v && v.readyState > 0) { v.paused ? v.play() : v.pause(); } else click('.play-pause-button');
@@ -83,6 +131,12 @@
   const tick = async () => {
     let wanted = true;
     try {
+      if (SP) {
+        const st = spState(), m = spMedia();
+        wanted = await invoke('report_state', { vol: m ? m.volume : 1, ...st });
+        setTimeout(tick, wanted ? 500 : 5000);
+        return;
+      }
       const md = navigator.mediaSession?.metadata;
       const v = document.querySelector('video'); if (v) applyVol(v);
       const art = md?.artwork || [];

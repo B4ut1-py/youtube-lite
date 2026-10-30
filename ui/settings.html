@@ -110,6 +110,7 @@ const TABS = [
   { id: 'sys', icon: '⚙️', name: 'Sistema', sub: 'Inicio, ventana y actualizaciones.', groups: [
     [
       { type: 'toggle', key: 'autostart', label: 'Iniciar con Windows', desc: 'Arranca minimizada en la bandeja.' },
+      { type: 'choice', key: 'source', label: 'Servicio de música', desc: 'También desde la bandeja. Spotify se abre en la misma ventana; inicia sesión con tu cuenta de Spotify o con "Continuar con Google" (la misma cuenta de YouTube).', options: [['ytm', 'YouTube Music'], ['spotify', 'Spotify']] },
       { type: 'toggle', key: 'close_to_tray', label: 'Cerrar a la bandeja', desc: 'Al cerrar la ventana la música sigue sonando. Si lo apagas, cerrar sale de la app.' },
     ],
     [
@@ -124,7 +125,7 @@ const TABS = [
       { type: 'button', label: 'Actualizaciones', desc: '', id: 'ver', buttons: [['Buscar ahora', 'check_update']] },
     ] ] },
   { id: 'about', icon: '↺', name: 'Restablecer', sub: 'Vuelve todo a como venía de fábrica.', groups: [
-    [ { type: 'button', label: 'Restablecer todos los ajustes', desc: 'No borra tu cuenta de YouTube Music.', buttons: [['Restablecer', 'reset_settings', 'danger']] } ] ] },
+    [ { type: 'button', label: 'Restablecer todos los ajustes', desc: 'No cierra tus sesiones de YouTube Music ni de Spotify.', buttons: [['Restablecer', 'reset_settings', 'danger']] } ] ] },
 ];
 
 const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstChild; };
@@ -154,6 +155,14 @@ function row(it) {
     const c = $(`<label class="sw"><input type="checkbox"><span></span></label>`), i = c.querySelector('input');
     i.checked = !!S[it.key];
     i.onchange = () => { set(it.key, i.checked); refreshDeps(); };
+    r.append(c);
+  } else if (it.type === 'choice') {
+    const c = $('<div class="btns"></div>');
+    it.options.forEach(([v, t]) => {
+      const b = $(`<button class="btn ${S[it.key] === v ? 'pri' : ''}">${t}</button>`);
+      b.onclick = () => { set(it.key, v); c.querySelectorAll('.btn').forEach(x => x.classList.remove('pri')); b.classList.add('pri'); };
+      c.append(b);
+    });
     r.append(c);
   } else if (it.type === 'range') {
     const c = $(`<div class="rng"><input type="range" min="${it.min}" max="${it.max}" step="${it.step}"><output></output></div>`), i = c.querySelector('input'), o = c.querySelector('output');
