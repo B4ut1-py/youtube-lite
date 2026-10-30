@@ -64,6 +64,13 @@
   const click = (sel) => document.querySelector(sel)?.click();
 
   // ---- Spotify: se lee el reproductor de la página (barra inferior) y se pulsan sus botones ----
+  // Spotify necesita Widevine: si no está disponible se avisa una vez (en vez de que la música simplemente no arranque).
+  if (SP && !sessionStorage.getItem('lm-drm-checked')) {
+    sessionStorage.setItem('lm-drm-checked', '1');
+    const cfg = [{ initDataTypes: ['cenc'], audioCapabilities: [{ contentType: 'audio/mp4; codecs="mp4a.40.2"', robustness: 'SW_SECURE_CRYPTO' }] }];
+    setTimeout(() => navigator.requestMediaKeySystemAccess('com.widevine.alpha', cfg).catch((e) =>
+      alert('Lite Music: Widevine no está disponible en este equipo, por eso Spotify no reproduce.\n' + e)), 4000);
+  }
   const T = (id) => `[data-testid="${id}"]`;
   const spMedia = () => document.querySelector('audio, video');
   let spPrev = { pos: -1, at: 0, playing: false };

@@ -24,7 +24,7 @@ const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (
 // Los dos webviews (YouTube y flotante) comparten entorno WebView2: los argumentos deben ser idénticos.
 #[cfg(windows)]
 const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate \
-     --disable-background-networking --disable-component-update --disable-gpu \
+     --disable-gpu \
      --disable-sync --renderer-process-limit=1 --enable-low-end-device-mode";
 
 #[derive(Clone, Serialize, Deserialize)]
