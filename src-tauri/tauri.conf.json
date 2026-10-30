@@ -28,7 +28,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU0QzRGMjZFMDcyOEIzNTkKUldSWnN5Z0hidkxFNUVDSnZXa0dxS25hNEU4WGV6eXZWOEdQemYzbTlZcm1iQkV0MTJiclNOSHQK",
       "endpoints": [
-        "https://github.com/clientesindexar-ctrl/youtube-lite/releases/latest/download/latest.json"
+        "https://github.com/B4ut1-py/youtube-lite/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
