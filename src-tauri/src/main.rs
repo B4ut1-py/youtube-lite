@@ -468,6 +468,8 @@ fn start_ticker(app: AppHandle) {
     let mut last_trim = Instant::now();
     let mut quiet_since = Instant::now();
     let mut last_reload = Instant::now();
+    let mut was_hidden = false;
+    let mut extra_trim: Vec<Instant> = Vec::new();
     loop {
         std::thread::sleep(Duration::from_secs(1));
         // Ventana oculta: tras cambiar de canción (o cada 3 min) la página vuelve a crecer; se le pide de nuevo bajar la memoria.
@@ -508,13 +510,24 @@ fn start_ticker(app: AppHandle) {
             } else if suspended && (!susp || !hidden) {
                 wake(&app);
             }
+            // Al ocultar la ventana se recorta enseguida (a los 5 y a los 30 s), sin esperar al ciclo periódico.
+            if hidden && !was_hidden {
+                let now = Instant::now();
+                extra_trim = vec![now + Duration::from_secs(5), now + Duration::from_secs(30)];
+            }
+            was_hidden = hidden;
             if enabled && hidden && !suspended {
+                let now = Instant::now();
+                if extra_trim.iter().any(|t| now >= *t) {
+                    extra_trim.retain(|t| now < *t);
+                    trim_at = Some(now);
+                }
                 let title = st.player.lock().unwrap().title.clone();
                 if title != last_title {
                     last_title = title;
                     trim_at = Some(Instant::now() + Duration::from_secs(10));
                 }
-                let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(180);
+                let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(120);
                 if due {
                     stop_service_workers(&w);
                     set_webview_memory(&w, false);
