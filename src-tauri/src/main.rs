@@ -19,7 +19,11 @@ fn source_url(source: &str) -> &'static str {
     if source == "spotify" { SPOTIFY_URL } else { YTM_URL }
 }
 // User-Agent de Chrome: evita que Google bloquee el inicio de sesión por "navegador no seguro".
-const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+// Lleva la versión real del motor: una fija queda vieja y no coincide con la que WebView2 informa por otras vías.
+fn user_agent() -> String {
+    let major = tauri::webview_version().ok().and_then(|v| v.split('.').next().map(str::to_owned)).unwrap_or_else(|| "130".into());
+    format!("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36")
+}
 
 // Los dos webviews (YouTube y flotante) comparten entorno WebView2: los argumentos deben ser idénticos.
 #[cfg(windows)]
@@ -118,12 +122,19 @@ fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
 }
 
 fn save_settings(app: &AppHandle) {
-    let json = serde_json::to_string_pretty(&*app.state::<AppState>().settings.lock().unwrap()).unwrap_or_default();
+    let st = app.state::<AppState>();
+    let c = st.settings.lock().unwrap(); // tomado hasta terminar: dos guardados a la vez no se mezclan
+    let json = serde_json::to_string_pretty(&*c).unwrap_or_default();
     if let Some(p) = settings_path(app) {
         if let Some(dir) = p.parent() {
             let _ = fs::create_dir_all(dir);
         }
-        let _ = fs::write(p, json);
+        // Se escribe aparte y se renombra: un cierre a mitad de escritura no deja settings.json roto
+        // (se perderían todos los ajustes y volvería la pantalla de bienvenida).
+        let tmp = p.with_extension("json.tmp");
+        if fs::write(&tmp, json).is_ok() {
+            let _ = fs::rename(&tmp, &p);
+        }
     }
 }
 
@@ -276,6 +287,7 @@ fn create_float(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         fb = fb.additional_browser_args(BROWSER_ARGS);
     }
     let w = fb.build()?;
+    reload_on_crash(app, &w);
     let _ = w.set_zoom(cfg.scale);
     restore_float_pos(app, &w);
     let ah = app.clone();
@@ -870,6 +882,47 @@ fn set_webview_suspended(w: &WebviewWindow, suspend: bool) {
 #[cfg(not(windows))]
 fn set_webview_suspended(_w: &WebviewWindow, _suspend: bool) {}
 
+// Si muere el proceso de la página (falta de memoria, fallo de WebView2) se recarga al momento: antes quedaba en blanco
+// y, con la ventana oculta, la música no volvía hasta abrirla. Si muere el navegador entero, la app se reinicia.
+#[cfg(windows)]
+fn reload_on_crash(app: &AppHandle, w: &WebviewWindow) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_3, COREWEBVIEW2_PROCESS_FAILED_KIND, COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED,
+        COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
+    };
+    use windows_core::Interface;
+    let (a, is_main) = (app.clone(), w.label() == "main");
+    let _ = w.with_webview(move |pw| unsafe {
+        let Ok(core) = pw.controller().CoreWebView2() else { return };
+        let h = webview2_com::ProcessFailedEventHandler::create(Box::new(move |sender, args| {
+            let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND(-1);
+            if let Some(args) = args {
+                let _ = unsafe { args.ProcessFailedKind(&mut kind) };
+            }
+            if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
+                // Fuera del hilo principal: así se cierran bien los plugins (instancia única) antes de relanzar.
+                let a2 = a.clone();
+                std::thread::spawn(move || a2.restart());
+            } else if let (true, Some(core)) = (kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED, sender) {
+                if is_main {
+                    SUSPENDED.store(false, std::sync::atomic::Ordering::SeqCst);
+                }
+                unsafe {
+                    if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
+                        let _ = c3.Resume();
+                    }
+                    let _ = core.Reload();
+                }
+            }
+            Ok(())
+        }));
+        let mut token = 0i64;
+        let _ = core.add_ProcessFailed(&h, &mut token);
+    });
+}
+#[cfg(not(windows))]
+fn reload_on_crash(_app: &AppHandle, _w: &WebviewWindow) {}
+
 // Despierta la página si estaba suspendida (antes de mostrarla o de enviarle una orden).
 fn wake(app: &AppHandle) {
     if SUSPENDED.swap(false, std::sync::atomic::Ordering::SeqCst) {
@@ -1009,7 +1062,7 @@ fn main() {
             .visible(app.state::<AppState>().settings.lock().unwrap().welcomed)
             .inner_size(1100.0, 720.0)
             .min_inner_size(420.0, 500.0)
-            .user_agent(UA)
+            .user_agent(&user_agent())
             .initialization_script(include_str!("inject.js"));
 
             // Menos procesos y sin servicios de red/actualización de fondo de WebView2.
@@ -1019,6 +1072,7 @@ fn main() {
             }
 
             let window = builder.build()?;
+            reload_on_crash(app.handle(), &window);
             if !app.state::<AppState>().settings.lock().unwrap().welcomed {
                 open_welcome(app.handle());
             }
