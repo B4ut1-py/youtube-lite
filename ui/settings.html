@@ -115,14 +115,14 @@ const TABS = [
     ],
     [
       { type: 'toggle', key: 'idle_webview', label: 'Ahorro de memoria con la ventana oculta', desc: 'Pide a WebView2 que libere memoria mientras la ventana está en la bandeja.' },
-      { type: 'toggle', key: 'idle_hide_ui', label: 'No dibujar la interfaz de YouTube al ocultarla', desc: 'La música sigue sonando. Apágalo si algo no responde al volver.' },
-      { type: 'toggle', key: 'suspend_idle', label: 'Congelar YouTube Music cuando no suena nada', desc: 'Con la ventana oculta y la música en pausa, la página se suspende por completo (casi 0 % de CPU). Se reactiva sola al mostrar la ventana o usar los controles del flotante o de la bandeja. Las teclas multimedia no la despiertan.' },
+      { type: 'toggle', key: 'idle_hide_ui', label: 'No dibujar la interfaz de la página al ocultarla', desc: 'La música sigue sonando. Apágalo si algo no responde al volver.' },
+      { type: 'toggle', key: 'suspend_idle', label: 'Congelar la página cuando no suena nada', desc: 'Con la ventana oculta y la música en pausa, la página se suspende por completo (casi 0 % de CPU). Se reactiva sola al mostrar la ventana o usar los controles del flotante o de la bandeja. Las teclas multimedia no la despiertan.' },
       { type: 'num', key: 'suspend_after_s', label: 'Congelar tras', unit: 's', min: 30, max: 1800, dep: 'suspend_idle' },
       { type: 'toggle', key: 'destroy_float', label: 'Liberar el flotante cuando está oculto', desc: 'Se cierra su proceso (unos 25 MB) y reaparece en un instante al mostrarlo.' },
     ],
     [
-      { type: 'toggle', key: 'auto_update', label: 'Buscar actualizaciones al abrir', desc: 'Se instalan solas.' },
-      { type: 'button', label: 'Actualizaciones', desc: '', id: 'ver', buttons: [['Buscar ahora', 'check_update']] },
+      { type: 'toggle', key: 'auto_update', label: 'Avisar si hay una versión nueva', desc: 'Busca al abrir y cada 6 horas. Si hay una, aparece arriba en la ventana y tú decides si instalarla. Nunca se instala sola.' },
+      { type: 'button', label: 'Actualizaciones', desc: 'Versión instalada', id: 'ver', buttons: [['Buscar ahora', 'check_update']] },
     ] ] },
   { id: 'about', icon: '↺', name: 'Restablecer', sub: 'Vuelve todo a como venía de fábrica.', groups: [
     [ { type: 'button', label: 'Hecho por Bautista Rubio', desc: 'Código y contacto.', buttons: [['GitHub', 'link:github'], ['LinkedIn', 'link:linkedin']] } ],
@@ -137,7 +137,7 @@ async function act(a) {
   if (a.startsWith('link:')) return inv('open_link', { which: a.slice(5) });
   if (a === 'reset_settings' && !confirm('¿Restablecer todos los ajustes?')) return;
   await inv('settings_action', { action: a });
-  toast(a === 'check_update' ? 'Buscando… (mira el icono de la bandeja)' : a === 'pomo_start' ? 'Pomodoro iniciado' : a === 'pomo_stop' ? 'Pomodoro detenido' : 'Listo');
+  toast(a === 'check_update' ? 'Buscando… (si hay una nueva, aparece arriba en la ventana)' : a === 'pomo_start' ? 'Pomodoro iniciado' : a === 'pomo_stop' ? 'Pomodoro detenido' : 'Listo');
   if (a === 'reset_settings') await load();
 }
 

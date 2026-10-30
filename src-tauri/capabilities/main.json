@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "youtube-page",
-  "description": "Las páginas de YouTube Music y Spotify solo pueden enviar el estado y usar los botones superiores.",
+  "description": "Las páginas de YouTube Music y Spotify solo pueden enviar el estado de reproducción.",
   "windows": [
     "main"
   ],
@@ -12,9 +12,6 @@
     ]
   },
   "permissions": [
-    "allow-report-state",
-    "allow-choose-source",
-    "allow-open-settings-win",
-    "allow-set-skin-cmd"
+    "allow-report-state"
   ]
 }

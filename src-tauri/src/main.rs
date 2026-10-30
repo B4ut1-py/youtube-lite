@@ -152,7 +152,7 @@ fn set_source(app: &AppHandle, source: &str) {
     }
 }
 
-// Pantalla de bienvenida (primer inicio) y botones de la ventana: elegir servicio, abrir Configuración, cambiar aspecto.
+// Pantalla de bienvenida (primer inicio) y elegir servicio.
 #[tauri::command]
 fn choose_source(app: AppHandle, source: String) {
     app.state::<AppState>().settings.lock().unwrap().welcomed = true;
@@ -160,16 +160,6 @@ fn choose_source(app: AppHandle, source: String) {
     if let Some(w) = app.get_webview_window("welcome") {
         let _ = w.close();
     }
-}
-
-#[tauri::command]
-fn open_settings_win(app: AppHandle) {
-    open_settings(&app);
-}
-
-#[tauri::command]
-fn set_skin_cmd(app: AppHandle, skin: String) {
-    set_skin(&app, &skin);
 }
 
 // Abre en el navegador uno de los enlaces fijos del autor (nunca una dirección recibida de fuera).
@@ -585,35 +575,92 @@ fn control(app: AppHandle, action: String, value: Option<f64>) {
     js(&app, &code);
 }
 
-// Busca una versión nueva en GitHub; si hay, la descarga e instala (en Windows el instalador
-// cierra la app, actualiza y la vuelve a abrir). "manual" solo cambia el aviso del tooltip.
-async fn check_update(app: AppHandle, manual: bool) {
-    let say = |msg: &str| {
-        if let Some(t) = app.tray_by_id("main") {
-            let _ = t.set_tooltip(Some(msg));
+// Elementos de menú que avisan de una versión nueva (barra superior de la ventana y bandeja).
+struct UpdUi {
+    menu: Menu<tauri::Wry>,
+    bar_item: MenuItem<tauri::Wry>,
+    tray_item: MenuItem<tauri::Wry>,
+    shown: bool,
+    version: Option<String>,
+}
+static UPD: std::sync::OnceLock<Mutex<UpdUi>> = std::sync::OnceLock::new();
+
+fn set_update_available(app: &AppHandle, version: Option<String>) {
+    let Some(u) = UPD.get() else { return };
+    let mut u = u.lock().unwrap();
+    match &version {
+        Some(v) => {
+            let _ = u.bar_item.set_text(format!("⬆  Nueva versión {v} disponible: instalar"));
+            let _ = u.tray_item.set_text(format!("⬆ Instalar versión {v}"));
+            if !u.shown {
+                let item = u.bar_item.clone();
+                if u.menu.append(&item).is_ok() {
+                    u.shown = true;
+                }
+            }
+            if let Some(t) = app.tray_by_id("main") {
+                let _ = t.set_tooltip(Some(&format!("Lite Music: versión {v} disponible")));
+            }
         }
-    };
+        None => {
+            if u.shown {
+                let item = u.bar_item.clone();
+                let _ = u.menu.remove(&item);
+                u.shown = false;
+            }
+            let _ = u.tray_item.set_text("Buscar actualizaciones");
+        }
+    }
+    u.version = version;
+}
+
+fn update_pending() -> bool {
+    UPD.get().map_or(false, |u| u.lock().unwrap().version.is_some())
+}
+
+fn say(app: &AppHandle, msg: &str) {
+    if let Some(t) = app.tray_by_id("main") {
+        let _ = t.set_tooltip(Some(msg));
+    }
+}
+
+// Busca una versión nueva en GitHub y AVISA en la ventana y en la bandeja. Nunca instala por su cuenta.
+async fn check_update(app: AppHandle, manual: bool) {
     let Ok(updater) = app.updater() else { return };
     match updater.check().await {
         Ok(Some(update)) => {
-            say(&format!("Lite Music: instalando versión {}…", update.version));
-            if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
-                #[cfg(not(windows))]
-                app.restart();
-            } else {
-                say("Lite Music: no se pudo actualizar");
-            }
+            say(&app, &format!("Lite Music: versión {} disponible", update.version));
+            set_update_available(&app, Some(update.version));
         }
         Ok(None) => {
+            set_update_available(&app, None);
             if manual {
-                say("Lite Music: ya tienes la última versión");
+                say(&app, "Lite Music: ya tienes la última versión");
             }
         }
         Err(_) => {
             if manual {
-                say("Lite Music: no se pudo buscar actualizaciones");
+                say(&app, "Lite Music: no se pudo buscar actualizaciones");
             }
         }
+    }
+}
+
+// Descarga e instala la versión nueva, solo cuando el usuario lo elige (en Windows el instalador
+// cierra la app, actualiza y la vuelve a abrir).
+async fn install_update(app: AppHandle) {
+    let Ok(updater) = app.updater() else { return };
+    match updater.check().await {
+        Ok(Some(update)) => {
+            say(&app, &format!("Lite Music: instalando versión {}…", update.version));
+            if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
+                #[cfg(not(windows))]
+                app.restart();
+            } else {
+                say(&app, "Lite Music: no se pudo actualizar");
+            }
+        }
+        _ => say(&app, "Lite Music: no se pudo actualizar"),
     }
 }
 
@@ -691,6 +738,7 @@ fn settings_action(app: AppHandle, action: String) {
         }
         "pomo_stop" => stop_pomo(&app),
         "check_update" => { let a = app.clone(); tauri::async_runtime::spawn(check_update(a, true)); }
+        "install_update" => { tauri::async_runtime::spawn(install_update(app.clone())); }
         "reset_pos" => {
             if let Some(w) = app.get_webview_window("float") { let _ = w.center(); }
         }
@@ -843,13 +891,56 @@ async fn tokio_sleep(secs: u64) {
     let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_secs(secs))).await;
 }
 
+// Acciones de los menús (bandeja y barra superior de la ventana).
+fn on_menu(app: &AppHandle, id: &str) {
+    match id {
+        "show" => show(app),
+        "pp" => js(app, "window.__lm&&window.__lm.playPause()"),
+        "next" => js(app, "window.__lm&&window.__lm.next()"),
+        "prev" => js(app, "window.__lm&&window.__lm.prev()"),
+        "src_ytm" => set_source(app, "ytm"),
+        "src_spotify" => set_source(app, "spotify"),
+        "float" => toggle_float(app),
+        "sz50" => set_float_scale(app, 0.5),
+        "sz70" => set_float_scale(app, 0.7),
+        "sz100" => set_float_scale(app, 1.0),
+        "dog" => set_skin(app, "dog"),
+        "cat" => set_skin(app, "cat"),
+        "cover" => set_skin(app, "cover"),
+        "none" => set_skin(app, "none"),
+        id @ ("trabajando" | "programando" | "tradeando" | "descansando" | "estudiando" | "festejando") => set_skin(app, id),
+        "pomo25" => start_pomo(app, 25, 5),
+        "pomo50" => start_pomo(app, 50, 10),
+        "pomo0" => stop_pomo(app),
+        "cfg" => open_settings(app),
+        "upd" => {
+            let a = app.clone();
+            if update_pending() {
+                tauri::async_runtime::spawn(install_update(a));
+            } else {
+                tauri::async_runtime::spawn(check_update(a, true));
+            }
+        }
+        "update" => {
+            tauri::async_runtime::spawn(install_update(app.clone()));
+        }
+        "quit" => app.exit(0),
+        _ => {}
+    }
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action, choose_source, open_settings_win, set_skin_cmd, open_link])
+        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action, choose_source, open_link])
         .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()) })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
+        .on_menu_event(|app, ev| {
+            if let Some(id) = ev.id.as_ref().strip_prefix("w_") {
+                on_menu(app, id);
+            }
+        })
         .setup(|app| {
             *app.state::<AppState>().settings.lock().unwrap() = load_settings(app.handle());
             let start_url = source_url(&app.state::<AppState>().settings.lock().unwrap().source);
@@ -931,6 +1022,7 @@ fn main() {
             let m_src = Submenu::with_items(app, "Servicio de música", true, &[&src_y, &src_s])?;
             let m_cfg = MenuItem::with_id(app, "cfg", "Configuración…", true, None::<&str>)?;
             let m_upd = MenuItem::with_id(app, "upd", "Buscar actualizaciones", true, None::<&str>)?;
+            let m_upd_tray = m_upd.clone();
             let p1 = MenuItem::with_id(app, "pomo25", "Iniciar 25 min estudio / 5 descanso", true, None::<&str>)?;
             let p2 = MenuItem::with_id(app, "pomo50", "Iniciar 50 min estudio / 10 descanso", true, None::<&str>)?;
             let p3 = MenuItem::with_id(app, "pomo0", "Detener", true, None::<&str>)?;
@@ -944,33 +1036,7 @@ fn main() {
                 .tooltip("Lite Music")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(move |app, ev| match ev.id.as_ref() {
-                    "show" => show(app),
-                    "pp" => js(app, "window.__lm&&window.__lm.playPause()"),
-                    "next" => js(app, "window.__lm&&window.__lm.next()"),
-                    "prev" => js(app, "window.__lm&&window.__lm.prev()"),
-                    "src_ytm" => set_source(app, "ytm"),
-                    "src_spotify" => set_source(app, "spotify"),
-                    "float" => toggle_float(app),
-                    "sz50" => set_float_scale(app, 0.5),
-                    "sz70" => set_float_scale(app, 0.7),
-                    "sz100" => set_float_scale(app, 1.0),
-                    "dog" => set_skin(app, "dog"),
-                    "cat" => set_skin(app, "cat"),
-                    "cover" => set_skin(app, "cover"),
-                    "none" => set_skin(app, "none"),
-                    id @ ("trabajando" | "programando" | "tradeando" | "descansando" | "estudiando" | "festejando") => set_skin(app, id),
-                    "pomo25" => start_pomo(app, 25, 5),
-                    "pomo50" => start_pomo(app, 50, 10),
-                    "pomo0" => stop_pomo(app),
-                    "cfg" => open_settings(app),
-                    "upd" => {
-                        let a = app.clone();
-                        tauri::async_runtime::spawn(check_update(a, true));
-                    }
-                    "quit" => app.exit(0),
-                    _ => {}
-                })
+                .on_menu_event(|app, ev| on_menu(app, ev.id.as_ref()))
                 .on_tray_icon_event(|tray, ev| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
@@ -983,14 +1049,43 @@ fn main() {
                 })
                 .build(app)?;
 
+            // Barra superior de la ventana: Configuración, Aspecto, Servicio y Pomodoro (nativa: no tapa nada de la página).
+            let mi = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>);
+            let bar = Menu::new(app)?;
+            bar.append(&mi("w_cfg", "⚙  Configuración")?)?;
+            let sm_skin = Submenu::new(app, "🎨  Aspecto", true)?;
+            for (id, t) in [("dog", "🐶 Perro"), ("cat", "🐱 Gato"), ("cover", "💿 Carátula"), ("none", "▭ Solo controles")] {
+                sm_skin.append(&mi(&format!("w_{id}"), t)?)?;
+            }
+            sm_skin.append(&PredefinedMenuItem::separator(app)?)?;
+            for (id, t) in [("trabajando", "💼 Trabajando"), ("programando", "💻 Programando"), ("tradeando", "📈 Tradeando"),
+                            ("descansando", "🛏 Descansando"), ("estudiando", "📚 Estudiando"), ("festejando", "🎉 Festejando")] {
+                sm_skin.append(&mi(&format!("w_{id}"), t)?)?;
+            }
+            bar.append(&sm_skin)?;
+            let sm_src = Submenu::new(app, "🎵  Servicio", true)?;
+            sm_src.append(&mi("w_src_ytm", "YouTube Music")?)?;
+            sm_src.append(&mi("w_src_spotify", "Spotify")?)?;
+            bar.append(&sm_src)?;
+            let sm_pomo = Submenu::new(app, "🍅  Pomodoro", true)?;
+            sm_pomo.append(&mi("w_pomo25", "Iniciar 25 min estudio / 5 descanso")?)?;
+            sm_pomo.append(&mi("w_pomo50", "Iniciar 50 min estudio / 10 descanso")?)?;
+            sm_pomo.append(&mi("w_pomo0", "Detener")?)?;
+            bar.append(&sm_pomo)?;
+            let _ = window.set_menu(bar.clone());
+            let _ = UPD.set(Mutex::new(UpdUi { menu: bar, bar_item: mi("w_update", "⬆  Nueva versión disponible")?, tray_item: m_upd_tray, shown: false, version: None }));
+
             start_ticker(app.handle().clone());
 
-            // Actualización automática al arrancar (tras unos segundos, para no competir con la carga).
+            // Búsqueda de versiones nuevas (solo avisa): al abrir, tras unos segundos, y luego cada 6 horas.
             let a = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 tokio_sleep(8).await;
-                if a.state::<AppState>().settings.lock().unwrap().auto_update {
-                    check_update(a, false).await;
+                loop {
+                    if a.state::<AppState>().settings.lock().unwrap().auto_update {
+                        check_update(a.clone(), false).await;
+                    }
+                    tokio_sleep(6 * 3600).await;
                 }
             });
 
