@@ -470,7 +470,6 @@ fn start_ticker(app: AppHandle) {
     let mut quiet_since = Instant::now();
     let mut last_reload = Instant::now();
     let mut was_hidden = false;
-    let mut last_gc = Instant::now();
     let mut extra_trim: Vec<Instant> = Vec::new();
     loop {
         std::thread::sleep(Duration::from_secs(1));
@@ -524,11 +523,6 @@ fn start_ticker(app: AppHandle) {
                     extra_trim.retain(|t| now < *t);
                     trim_at = Some(now);
                 }
-                // Con la ventana oculta la página sigue generando basura de memoria: se limpia cada 30 s (cuesta milisegundos).
-                if last_gc.elapsed() >= Duration::from_secs(30) {
-                    collect_garbage(&w);
-                    last_gc = Instant::now();
-                }
                 let title = st.player.lock().unwrap().title.clone();
                 if title != last_title {
                     last_title = title;
@@ -537,7 +531,6 @@ fn start_ticker(app: AppHandle) {
                 let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(120);
                 if due {
                     stop_service_workers(&w);
-                    collect_garbage(&w);
                     set_webview_memory(&w, false);
                     std::thread::sleep(Duration::from_millis(300));
                     set_webview_memory(&w, true);
@@ -909,11 +902,6 @@ fn cdp(_w: &WebviewWindow, _methods: &'static [&'static str]) {}
 // a Spotify: ~130 MB). Se reinician solos si la página que está abierta los necesita.
 fn stop_service_workers(w: &WebviewWindow) {
     cdp(w, &["ServiceWorker.enable", "ServiceWorker.stopAllWorkers", "ServiceWorker.disable"]);
-}
-
-// Limpia la memoria de JavaScript que la página ya no usa (la basura que genera mientras suena, p. ej. Spotify).
-fn collect_garbage(w: &WebviewWindow) {
-    cdp(w, &["HeapProfiler.enable", "HeapProfiler.collectGarbage", "HeapProfiler.disable", "Memory.forciblyPurgeJavaScriptMemory"]);
 }
 
 // Entra o sale del modo ahorro de la ventana principal según los ajustes.
