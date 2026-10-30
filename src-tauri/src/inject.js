@@ -135,6 +135,44 @@
   // Informa de la canción al reproductor flotante (0,5 s si se ve, 5 s si no)
   const invoke = window.__TAURI_INTERNALS__?.invoke;
   if (!invoke) return;
+
+  // Botones superiores: cambiar de servicio, elegir el aspecto del flotante y abrir la Configuración.
+  const SKINS = [['dog', '🐶 Perro'], ['cat', '🐱 Gato'], ['cover', '💿 Carátula'], ['none', '▭ Solo controles'], null,
+    ['trabajando', '💼 Trabajando'], ['programando', '💻 Programando'], ['tradeando', '📈 Tradeando'],
+    ['descansando', '🛏 Descansando'], ['estudiando', '📚 Estudiando'], ['festejando', '🎉 Festejando']];
+  const buildBar = () => {
+    if (document.getElementById('lm-bar') || !document.body) return;
+    const st = document.createElement('style');
+    st.textContent = `
+      #lm-bar{position:fixed;top:10px;${SP ? 'left:72px' : 'right:84px'};z-index:2147483647;display:flex;gap:4px;padding:3px;border-radius:18px;
+        background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(6px);font:14px "Segoe UI",system-ui,sans-serif}
+      #lm-bar button{all:unset;box-sizing:border-box;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+        cursor:pointer;color:#fff;font-size:15px;background:rgba(255,255,255,.08)}
+      #lm-bar button:hover{background:rgba(255,255,255,.22)}
+      #lm-menu{position:fixed;top:48px;${SP ? 'left:72px' : 'right:84px'};z-index:2147483647;width:190px;padding:6px;border-radius:10px;display:none;
+        background:#2a2a3a;border:1px solid rgba(255,255,255,.18);font:12.5px "Segoe UI",system-ui,sans-serif;color:#fff}
+      #lm-menu div{padding:6px 9px;border-radius:6px;cursor:pointer}
+      #lm-menu div:hover{background:#6d4cff}
+      #lm-menu hr{border:0;border-top:1px solid rgba(255,255,255,.18);margin:4px 0}
+      html.lm-hidden #lm-bar, html.lm-hidden #lm-menu{display:none !important}`;
+    document.head.appendChild(st);
+    const bar = document.createElement('div'); bar.id = 'lm-bar';
+    const menu = document.createElement('div'); menu.id = 'lm-menu';
+    const btn = (t, title, fn) => { const b = document.createElement('button'); b.textContent = t; b.title = title; b.onclick = fn; bar.appendChild(b); return b; };
+    btn('⇄', SP ? 'Cambiar a YouTube Music' : 'Cambiar a Spotify', () => invoke('choose_source', { source: SP ? 'ytm' : 'spotify' }));
+    btn('🐶', 'Aspecto del flotante', (e) => { e.stopPropagation(); menu.style.display = menu.style.display === 'block' ? 'none' : 'block'; });
+    btn('⚙', 'Configuración', () => invoke('open_settings_win'));
+    SKINS.forEach((k) => {
+      if (!k) { menu.appendChild(document.createElement('hr')); return; }
+      const d = document.createElement('div'); d.textContent = k[1];
+      d.onclick = () => { invoke('set_skin_cmd', { skin: k[0] }); menu.style.display = 'none'; };
+      menu.appendChild(d);
+    });
+    document.addEventListener('click', () => { menu.style.display = 'none'; }, true);
+    document.body.append(bar, menu);
+  };
+  // La página puede rehacer su <body>: se comprueba de vez en cuando (barato) que los botones sigan ahí.
+  setInterval(buildBar, 3000); setTimeout(buildBar, 500);
   const tick = async () => {
     let wanted = true;
     try {

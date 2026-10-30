@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "welcome-window",
+  "description": "Pantalla de bienvenida.",
+  "windows": [
+    "welcome"
+  ],
+  "permissions": [
+    "allow-choose-source",
+    "allow-open-link"
+  ]
+}

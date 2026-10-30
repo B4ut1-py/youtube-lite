@@ -1,8 +1,20 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "youtube-page",
-  "description": "Las páginas de YouTube Music y Spotify solo puede enviar el estado de reproducción.",
-  "windows": ["main"],
-  "remote": { "urls": ["https://music.youtube.com/*", "https://open.spotify.com/*"] },
-  "permissions": ["allow-report-state"]
+  "description": "Las páginas de YouTube Music y Spotify solo pueden enviar el estado y usar los botones superiores.",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "https://music.youtube.com/*",
+      "https://open.spotify.com/*"
+    ]
+  },
+  "permissions": [
+    "allow-report-state",
+    "allow-choose-source",
+    "allow-open-settings-win",
+    "allow-set-skin-cmd"
+  ]
 }

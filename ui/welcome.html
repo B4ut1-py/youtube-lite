@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Lite Music</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:radial-gradient(1200px 600px at 50% -10%,#2b2160 0%,#14141f 60%);color:#eceaf7;font-family:"Segoe UI",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;user-select:none}
+.logo{width:92px;height:92px;border-radius:22px;box-shadow:0 10px 40px #7c4dff55}
+h1{margin:6px 0 0;font-size:26px;letter-spacing:.2px}
+p.sub{margin:0;color:#a6a3bd;font-size:14px}
+.cards{display:flex;gap:16px;margin-top:10px}
+.card{width:240px;padding:24px 14px 18px;border-radius:16px;text-align:center;background:#1e1e2f;border:2px solid #ffffff12;cursor:pointer;transition:transform .12s,border-color .12s;font:inherit;color:inherit}
+.card:hover{transform:translateY(-3px)}
+.card.y:hover{border-color:#ff3d57}.card.s:hover{border-color:#1ed760}
+.card svg{width:44px;height:44px;margin-bottom:10px}
+.card b{display:block;font-size:17px}.card small{display:block;color:#a6a3bd;margin:4px 0 14px;font-size:12px;min-height:30px}
+.go{display:block;padding:9px 0;border-radius:22px;font-size:13px;font-weight:600}
+.y .go{background:#ff0033;color:#fff}.s .go{background:#1db954;color:#06130a}
+.note{font-size:12px;color:#7d7a96;margin-top:2px}
+.me{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #ffffff14;width:100%;max-width:496px;justify-content:center;font-size:13px;color:#a6a3bd}
+.me a{display:flex;align-items:center;gap:8px;color:#eceaf7;text-decoration:none;padding:7px 14px;border-radius:20px;background:#ffffff0f;cursor:pointer}
+.me a:hover{background:#ffffff1f}
+.me svg{width:18px;height:18px;fill:currentColor}
+</style></head><body>
+<img class="logo" src="logo.png" alt="">
+<h1>Bienvenido a Lite Music</h1>
+<p class="sub">¿Qué servicio quieres usar? Podrás cambiarlo cuando quieras.</p>
+<div class="cards">
+  <button class="card y" data-s="ytm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#ff0033"/><circle cx="12" cy="12" r="6.2" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M10 8.9v6.2l5.2-3.1z" fill="#fff"/></svg><b>YouTube Music</b><small>Inicia sesión con tu cuenta de Google</small><span class="go">Elegir</span></button>
+  <button class="card s" data-s="spotify"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#1ed760"/><path d="M5.6 9.2c4.2-1.2 8.9-.9 12.7 1.3M6.3 12.5c3.5-1 7.3-.7 10.5 1.1M7 15.6c2.8-.7 5.7-.5 8.2.9" fill="none" stroke="#06130a" stroke-width="1.7" stroke-linecap="round"/></svg><b>Spotify</b><small>Cuenta de Spotify o "Continuar con Google"</small><span class="go">Elegir</span></button>
+</div>
+<div class="note">La sesión se inicia en la propia página del servicio. Lite Music no guarda tu contraseña.</div>
+<div class="me"><span>Hecho por Bautista Rubio</span>
+  <a data-l="github"><svg viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</a>
+  <a data-l="linkedin"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>LinkedIn</a></div>
+<script>
+const inv = (c, a) => window.__TAURI_INTERNALS__.invoke(c, a);
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => inv('choose_source', { source: b.dataset.s }));
+document.querySelectorAll('[data-l]').forEach(a => a.onclick = () => inv('open_link', { which: a.dataset.l }));
+</script></body></html>

@@ -125,6 +125,7 @@ const TABS = [
       { type: 'button', label: 'Actualizaciones', desc: '', id: 'ver', buttons: [['Buscar ahora', 'check_update']] },
     ] ] },
   { id: 'about', icon: '↺', name: 'Restablecer', sub: 'Vuelve todo a como venía de fábrica.', groups: [
+    [ { type: 'button', label: 'Hecho por Bautista Rubio', desc: 'Código y contacto.', buttons: [['GitHub', 'link:github'], ['LinkedIn', 'link:linkedin']] } ],
     [ { type: 'button', label: 'Restablecer todos los ajustes', desc: 'No cierra tus sesiones de YouTube Music ni de Spotify.', buttons: [['Restablecer', 'reset_settings', 'danger']] } ] ] },
 ];
 
@@ -133,6 +134,7 @@ let toastT;
 const toast = (m = 'Guardado') => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1200); };
 async function set(key, value) { S[key] = value; await inv('set_setting', { key, value }); toast(); }
 async function act(a) {
+  if (a.startsWith('link:')) return inv('open_link', { which: a.slice(5) });
   if (a === 'reset_settings' && !confirm('¿Restablecer todos los ajustes?')) return;
   await inv('settings_action', { action: a });
   toast(a === 'check_update' ? 'Buscando… (mira el icono de la bandeja)' : a === 'pomo_start' ? 'Pomodoro iniciado' : a === 'pomo_stop' ? 'Pomodoro detenido' : 'Listo');

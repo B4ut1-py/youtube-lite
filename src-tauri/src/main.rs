@@ -55,6 +55,7 @@ struct Settings {
     suspend_idle: bool,
     suspend_after_s: u64,
     source: String,
+    welcomed: bool,
 }
 
 impl Default for Settings {
@@ -63,7 +64,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, suspend_idle: true, suspend_after_s: 90, source: "ytm".into(),
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, suspend_idle: true, suspend_after_s: 90, source: "ytm".into(), welcomed: false,
         }
     }
 }
@@ -105,6 +106,7 @@ struct AppState {
     pending_pos: Mutex<Option<(i32, i32)>>,
     player: Mutex<PlayerState>,
     float_visible: Mutex<bool>,
+    last_report: Mutex<Instant>,   // última vez que la página de música dio señales de vida
 }
 
 const FLOAT_W: f64 = 340.0;
@@ -147,6 +149,68 @@ fn set_source(app: &AppHandle, source: &str) {
     if let Some(w) = main_window(app) {
         let _ = w.navigate(source_url(source).parse().unwrap());
         show(app);
+    }
+}
+
+// Pantalla de bienvenida (primer inicio) y botones de la ventana: elegir servicio, abrir Configuración, cambiar aspecto.
+#[tauri::command]
+fn choose_source(app: AppHandle, source: String) {
+    app.state::<AppState>().settings.lock().unwrap().welcomed = true;
+    set_source(&app, &source);
+    if let Some(w) = app.get_webview_window("welcome") {
+        let _ = w.close();
+    }
+}
+
+#[tauri::command]
+fn open_settings_win(app: AppHandle) {
+    open_settings(&app);
+}
+
+#[tauri::command]
+fn set_skin_cmd(app: AppHandle, skin: String) {
+    set_skin(&app, &skin);
+}
+
+// Abre en el navegador uno de los enlaces fijos del autor (nunca una dirección recibida de fuera).
+#[tauri::command]
+fn open_link(which: String) {
+    let url = match which.as_str() {
+        "github" => "https://github.com/B4ut1-py",
+        "linkedin" => "https://www.linkedin.com/in/bautista-rubio/",
+        _ => return,
+    };
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("explorer.exe").arg(url).creation_flags(0x0800_0000).spawn();
+    }
+    #[cfg(not(windows))]
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+}
+
+fn open_welcome(app: &AppHandle) {
+    #[allow(unused_mut)]
+    let mut b = WebviewWindowBuilder::new(app, "welcome", WebviewUrl::App("welcome.html".into()))
+        .title("Lite Music")
+        .inner_size(600.0, 600.0)
+        .resizable(false)
+        .maximizable(false)
+        .center();
+    #[cfg(windows)]
+    {
+        b = b.additional_browser_args(BROWSER_ARGS);
+    }
+    if let Ok(w) = b.build() {
+        let a = app.clone();
+        w.on_window_event(move |e| {
+            // Cerrar sin elegir: no hay servicio que mostrar, se sale y se vuelve a preguntar la próxima vez.
+            if let WindowEvent::CloseRequested { .. } = e {
+                if !a.state::<AppState>().settings.lock().unwrap().welcomed {
+                    a.exit(0);
+                }
+            }
+        });
     }
 }
 
@@ -403,6 +467,7 @@ fn start_ticker(app: AppHandle) {
     let mut trim_at: Option<Instant> = None;
     let mut last_trim = Instant::now();
     let mut quiet_since = Instant::now();
+    let mut last_reload = Instant::now();
     loop {
         std::thread::sleep(Duration::from_secs(1));
         // Ventana oculta: tras cambiar de canción (o cada 3 min) la página vuelve a crecer; se le pide de nuevo bajar la memoria.
@@ -419,6 +484,23 @@ fn start_ticker(app: AppHandle) {
                 quiet_since = Instant::now();
             }
             let suspended = SUSPENDED.load(std::sync::atomic::Ordering::SeqCst);
+            // Vigilante: si la página lleva un rato sin dar señales (se cortó la conexión y quedó la pantalla de error,
+            // o la página murió en segundo plano), se recarga sola. No toca la página de inicio de sesión ni la suspendida.
+            let (welcomed, source) = {
+                let c = st.settings.lock().unwrap();
+                (c.welcomed, c.source.clone())
+            };
+            let on_service = w.url().map_or(false, |u| {
+                matches!(u.host_str(), Some("music.youtube.com") | Some("open.spotify.com")) || !matches!(u.scheme(), "http" | "https")
+            });
+            if welcomed && !suspended && on_service
+                && st.last_report.lock().unwrap().elapsed() > Duration::from_secs(150)
+                && last_reload.elapsed() > Duration::from_secs(60)
+            {
+                let _ = w.navigate(source_url(&source).parse().unwrap());
+                last_reload = Instant::now();
+                *st.last_report.lock().unwrap() = Instant::now();
+            }
             // Sin música y con la ventana oculta: se congela la página hasta que vuelva a hacer falta.
             if susp && hidden && !playing && !suspended && quiet_since.elapsed() >= Duration::from_secs(after) {
                 set_webview_suspended(&w, true);
@@ -468,6 +550,7 @@ fn start_ticker(app: AppHandle) {
 // (la página usa eso para consultar con menos frecuencia cuando no hace falta).
 #[tauri::command]
 fn report_state(state: tauri::State<AppState>, title: String, artist: String, cover: String, vol: f64, playing: bool, pos: f64, dur: f64) -> bool {
+    *state.last_report.lock().unwrap() = Instant::now();
     let mut p = state.player.lock().unwrap();
     p.title = title;
     p.artist = artist;
@@ -612,7 +695,12 @@ fn settings_action(app: AppHandle, action: String) {
             if let Some(w) = app.get_webview_window("float") { let _ = w.center(); }
         }
         "reset_settings" => {
-            *app.state::<AppState>().settings.lock().unwrap() = Settings::default();
+            {
+                let st = app.state::<AppState>();
+                let mut c = st.settings.lock().unwrap();
+                let (source, welcomed) = (c.source.clone(), c.welcomed);
+                *c = Settings { source, welcomed, ..Settings::default() };
+            }
             save_settings(&app);
             set_float_scale(&app, 1.0);
             set_skin(&app, "dog");
@@ -705,6 +793,7 @@ fn set_webview_suspended(_w: &WebviewWindow, _suspend: bool) {}
 // Despierta la página si estaba suspendida (antes de mostrarla o de enviarle una orden).
 fn wake(app: &AppHandle) {
     if SUSPENDED.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        *app.state::<AppState>().last_report.lock().unwrap() = Instant::now();
         if let Some(w) = main_window(app) {
             set_webview_suspended(&w, false);
             set_webview_idle(&w, true);
@@ -756,8 +845,8 @@ async fn tokio_sleep(secs: u64) {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action])
-        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true) })
+        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action, choose_source, open_settings_win, set_skin_cmd, open_link])
+        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()) })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
@@ -771,6 +860,7 @@ fn main() {
                 WebviewUrl::External(start_url.parse().unwrap()),
             )
             .title("Lite Music")
+            .visible(app.state::<AppState>().settings.lock().unwrap().welcomed)
             .inner_size(1100.0, 720.0)
             .min_inner_size(420.0, 500.0)
             .user_agent(UA)
@@ -783,6 +873,9 @@ fn main() {
             }
 
             let window = builder.build()?;
+            if !app.state::<AppState>().settings.lock().unwrap().welcomed {
+                open_welcome(app.handle());
+            }
             // Arranque con Windows: empieza oculta en la bandeja.
             if std::env::args().any(|a| a == "--minimized") {
                 hide(app.handle(), &window);
