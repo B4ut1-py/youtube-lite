@@ -176,8 +176,9 @@ ytmusic-player-bar .thumbnail-image-wrapper, ytmusic-player-bar .image { border-
   -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
   clip-path: inset(0 0 calc(100% - 22px) 0); }   /* solo el canto de arriba: termina donde la curva se vuelve vertical */
 ytmusic-app-layout:has(#progress-bar:hover, #progress-bar[dragging]) #player-bar-background::before { border-width: 5px; }
-ytmusic-player-bar #progress-bar { left: 0 !important; right: 0 !important; width: auto !important; top: -15px !important; }
-ytmusic-player-bar #progress-bar #sliderContainer { margin: 0 !important; width: 100% !important; }
+/* franja de clic de 14px centrada en el borde, por encima de los controles y sin tapar los botones de abajo */
+ytmusic-player-bar #progress-bar { left: 0 !important; right: 0 !important; width: auto !important; top: 2px !important; height: 14px !important; overflow: hidden !important; z-index: 5 !important; }
+ytmusic-player-bar #progress-bar #sliderContainer { margin: -9px 0 0 !important; width: 100% !important; }
 ytmusic-player-bar #progress-bar .bar-container { left: 0 !important; right: 0 !important; }
 ytmusic-player-bar #progress-bar :is(#progressContainer, #primaryProgress, #secondaryProgress, .slider-knob) { opacity: 0 !important; }
 #volume-slider #primaryProgress { border-radius: 999px; }
