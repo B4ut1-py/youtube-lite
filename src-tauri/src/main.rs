@@ -62,6 +62,7 @@ struct Settings {
     welcomed: bool,
     notify_song: bool,
     theme: String,  // "auto" (sigue a Windows), "dark" o "light"
+    glass: String,  // estilo del flotante: "off" o "art" (cristal sobre la carátula)
     #[serde(default)] // ausente en archivos viejos = false (el default de la estructura es true para instalaciones nuevas)
     float_v2: bool, // ya se adaptó la escala al flotante nuevo (tarjeta)
 }
@@ -72,7 +73,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), float_v2: true,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), glass: "off".into(), float_v2: true,
         }
     }
 }
@@ -812,13 +813,15 @@ struct BarState {
     pomo_left: u64,
     update: Option<String>,
     theme: String,
+    glass: bool,
+    cover: String, // carátula para el fondo del estilo Cristal (vacía si está apagado)
     maximized: bool,
 }
 
 #[tauri::command]
 fn bar_state(app: AppHandle) -> BarState {
     let st = app.state::<AppState>();
-    let (source, theme) = { let c = st.settings.lock().unwrap(); (c.source.clone(), c.theme.clone()) };
+    let (source, theme, glass) = { let c = st.settings.lock().unwrap(); (c.source.clone(), c.theme.clone(), c.glass == "art") };
     let (pomo_phase, pomo_left) = {
         let pm = st.pomo.lock().unwrap();
         match pm.phase {
@@ -836,6 +839,8 @@ fn bar_state(app: AppHandle) -> BarState {
         pomo_left,
         update: UPD.get().and_then(|u| u.lock().unwrap().version.clone()),
         theme,
+        glass,
+        cover: if glass { st.player.lock().unwrap().cover.clone() } else { String::new() },
         maximized: main_win(&app).and_then(|w| w.is_maximized().ok()).unwrap_or(false),
     }
 }
@@ -893,6 +898,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "close_to_tray" => if let Some(v) = b { c.close_to_tray = v },
             "notify_song" => if let Some(v) = b { c.notify_song = v },
             "theme" => if let Some(v) = value.as_str().filter(|v| ["auto", "dark", "light"].contains(v)) { c.theme = v.into() },
+            "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "art"].contains(v)) { c.glass = v.into() },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
             "idle_webview" => if let Some(v) = b { c.idle_webview = v },
             "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
@@ -905,6 +911,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
         "scale" => if let Some(v) = n { set_float_scale(&app, v) },
         "source" => if let Some(v) = value.as_str() { set_source(&app, v) },
         "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
+        "glass" => if let Some(v) = value.as_str() { js(&app, &format!("window.__lm&&window.__lm.glass({})", v == "art")) },
         "autostart" => if let Some(v) = b {
             let al = app.autolaunch();
             let _ = if v { al.enable() } else { al.disable() };
@@ -1195,11 +1202,16 @@ fn main() {
         }).build())
         .setup(|app| {
             *app.state::<AppState>().settings.lock().unwrap() = load_settings(app.handle());
-            let start_url = source_url(&app.state::<AppState>().settings.lock().unwrap().source);
+            let st = app.state::<AppState>();
+            let (start_url, glass_on) = { let c = st.settings.lock().unwrap(); (source_url(&c.source), c.glass == "art") };
+            // estilo Cristal: las hojas de cada sitio viajan dentro del script; si arranca prendido se aplica antes de pintar
+            let init = include_str!("inject.js")
+                .replace("/*__LM_GLASS_CSS__*/{}", &serde_json::json!({ "ytm": include_str!("glass-ytm.css"), "sp": include_str!("glass-sp.css") }).to_string())
+                .replace("/*__LM_GLASS_ON__*/false", if glass_on { "true" } else { "false" });
             #[allow(unused_mut)]
             let mut builder = WebviewBuilder::new("main", WebviewUrl::External(start_url.parse().unwrap()))
             .user_agent(&user_agent())
-            .initialization_script(include_str!("inject.js"))
+            .initialization_script(&init)
             .on_navigation(|u| {
                 let ok = allowed_in_app(u);
                 if !ok {
@@ -1209,7 +1221,12 @@ fn main() {
             })
             // Una página que se recarga con la ventana oculta (caída, vigilante, cambio de servicio) vuelve al modo ahorro.
             .on_page_load(|w, p| {
-                if p.event() == tauri::webview::PageLoadEvent::Finished && (!w.window().is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst)) {
+                if p.event() != tauri::webview::PageLoadEvent::Finished { return; }
+                // el script se armó al abrir la app: si el Cristal cambió desde entonces, aquí se corrige
+                let st = w.app_handle().state::<AppState>();
+                let glass = st.settings.lock().unwrap().glass == "art";
+                let _ = w.eval(&format!("window.__lm&&window.__lm.glass({glass})"));
+                if !w.window().is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst) {
                     set_main_idle(w.app_handle(), true);
                 }
             })

@@ -55,6 +55,25 @@
   .grp-title { padding: 12px 18px 0; color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .8px; }
   #toast { position: fixed; right: 22px; bottom: 18px; padding: 8px 14px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--line); opacity: 0; transition: opacity .2s; pointer-events: none; }
   #toast.on { opacity: 1; }
+  /* Cristal: solo apariencia (colores, radios y sombras) */
+  html.glass { --panel: var(--tint); }
+  html.glass nav { background: var(--tint); border-right-color: var(--rim2); }
+  html.glass.light nav h1 span, html.glass.light nav button.on i { color: #c8164a; }
+  html.glass nav button { border-radius: 999px; }
+  html.glass nav button.on { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
+  html.glass .group { border-color: transparent; border-radius: 22px; box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), 0 10px 26px rgba(0, 0, 0, .2); }
+  html.glass .row { border-bottom-color: var(--rim2); }
+  html.glass .btn { border-color: transparent; border-radius: 999px; background: var(--tint); box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
+  html.glass .btn:hover { background: var(--hover); }
+  html.glass .btn.pri { background: linear-gradient(180deg, rgba(255, 110, 145, .95), rgba(255, 61, 110, .78)); color: #fff;
+    box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, .65), inset 0 -2px 4px rgba(120, 0, 40, .25), 0 4px 14px rgba(255, 61, 110, .35); }
+  html.glass .btn.danger { color: #ff9aaa; } html.glass.light .btn.danger { color: #c4143a; }
+  html.glass .num input { background: var(--tint); border-color: transparent; box-shadow: inset 0 1px 1px rgba(0, 0, 0, .12), inset 0 -1px 0 var(--rim2); }
+  html.glass .skin { background: var(--tint); border-color: transparent; box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
+  html.glass .skin:hover { background: var(--hover); } html.glass .skin.on { background: var(--accent-soft); border-color: var(--accent); }
+  html.glass .sw span { box-shadow: inset 0 1px 1px rgba(0, 0, 0, .12); }
+  html.glass #toast { background: rgba(30, 30, 40, .72); color: #fff; border-color: transparent; box-shadow: inset 0 1px 0 var(--rim), 0 6px 18px rgba(0, 0, 0, .3); }
+  html.glass.light #toast { background: rgba(255, 255, 255, .85); color: #14141a; }
   @media (max-width: 720px) { .skins { grid-template-columns: repeat(3, 1fr); } .rng { width: 180px; } }
 </style>
 </head>
@@ -80,6 +99,7 @@ const TABS = [
     [{ type: 'skins', key: 'skin' }],
     [
       { type: 'choice', key: 'theme', label: 'Tema', desc: 'Oscuro, claro o igual que Windows. Se aplica al flotante y a esta ventana.', options: [['auto', 'Automático'], ['dark', 'Oscuro'], ['light', 'Claro']] },
+      { type: 'choice', key: 'glass', label: 'Estilo', desc: 'Cristal: vidrio translúcido sobre la carátula de la canción, en toda la app, YouTube Music y Spotify.', options: [['off', 'Normal'], ['art', 'Cristal']] },
       { type: 'range', key: 'scale', label: 'Tamaño', desc: 'También con Ctrl + rueda del mouse sobre el flotante (la rueda sola cambia el volumen).', min: 0.7, max: 1.6, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'range', key: 'float_opacity', label: 'Opacidad', desc: 'Más bajo = más transparente.', min: 0.3, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'toggle', key: 'float_on_top', label: 'Siempre encima', desc: 'Se mantiene por delante de otras ventanas.' },
@@ -137,7 +157,13 @@ const TABS = [
 const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstChild; };
 let toastT;
 const toast = (m = 'Guardado') => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1200); };
-async function set(key, value) { S[key] = value; if (key === 'theme') applyTheme(value); await inv('set_setting', { key, value }); toast(); }
+// Cristal: la carátula la da get_state; se vuelve a pedir al elegirlo y al volver a esta ventana
+async function paintGlass() {
+  let c = ''; if (S.glass === 'art') try { c = (await inv('get_state')).cover || ''; } catch (_) {}
+  applyGlass(S.glass === 'art', c);
+}
+addEventListener('focus', () => { if (S.glass === 'art') paintGlass(); });
+async function set(key, value) { S[key] = value; if (key === 'theme') applyTheme(value); if (key === 'glass') paintGlass(); await inv('set_setting', { key, value }); toast(); }
 async function act(a) {
   if (a.startsWith('link:')) return inv('open_link', { which: a.slice(5) });
   if (a === 'reset_settings' && !confirm('¿Restablecer todos los ajustes?')) return;
@@ -210,7 +236,7 @@ function buildTabs() {
 async function load(keep) {
   const v = await inv('get_settings');
   S = { ...v.settings, autostart: v.autostart }; META = { version: v.version };
-  applyTheme(S.theme);
+  applyTheme(S.theme); paintGlass();
   if (!keep) buildTabs();
   render();
 }

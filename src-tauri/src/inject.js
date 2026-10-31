@@ -29,6 +29,25 @@
     (document.head || document.documentElement).appendChild(el);
   });
 
+  // Estilo Cristal (opcional, solo apariencia). Rust reemplaza estos marcadores al crear la página
+  // y luego lo prende o apaga con __lm.glass() al cambiar el ajuste o al terminar de cargar.
+  const GLASS_CSS = /*__LM_GLASS_CSS__*/{}[SP ? 'sp' : 'ytm'] || '';
+  let glassEl = null, glassCover = '';
+  const setGlass = (on) => whenRoot(() => {
+    const r = document.documentElement;
+    if (!on || !GLASS_CSS) { glassEl?.remove(); glassEl = null; r.classList.remove('lm-glass'); return; }
+    if (!glassEl) { glassEl = document.createElement('style'); glassEl.textContent = GLASS_CSS; }
+    (document.head || r).appendChild(glassEl);
+    r.classList.add('lm-glass');
+  });
+  // fondo del Cristal: la carátula de la canción (la pone el informe de estado, más abajo)
+  const glassBg = (cover) => {
+    if (!glassEl || cover === glassCover) return;
+    glassCover = cover;
+    document.documentElement.style.setProperty('--lm-cover', cover ? `url("${cover.replace(/"/g, '%22')}")` : 'none');
+  };
+  setGlass(/*__LM_GLASS_ON__*/false);
+
   // Funciones llamadas desde Rust (bandeja y reproductor flotante)
   // Volumen elegido desde el flotante. YouTube lo reinicia solo (cambio de canción, normalización de volumen...),
   // así que se vuelve a aplicar cada vez que cambia. Si tocas el volumen de YouTube Music, manda YouTube.
@@ -162,6 +181,7 @@
       document.querySelectorAll('video').forEach((v) => { if (v.muted) h ? v.pause() : v.play().catch(() => {}); });
       const r = document.documentElement; if (!r) return; r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full);
     },
+    glass: setGlass,
   } : {
     playPause: () => {
       const v = document.querySelector('video');
@@ -183,6 +203,7 @@
       const r = document.documentElement; if (!r) return;
       r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full);
     },
+    glass: setGlass,
   };
 
   // Informa de la canción al reproductor flotante. Solo se envía cuando algo CAMBIA (canción, pausa, duración, volumen,
@@ -222,6 +243,7 @@
     try {
       if (!SP) youThere();
       const n = snapshot();
+      glassBg(n.cover);
       if (changed(n)) { sent = n; sentAt = Date.now(); wanted = await invoke('report_state', n); }
     } catch (_) {}
     timer = setTimeout(tick, wanted ? 2000 : 5000);
