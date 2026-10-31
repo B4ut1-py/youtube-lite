@@ -922,7 +922,7 @@ fn reload_on_crash(app: &AppHandle, w: &WebviewWindow) {
         let h = webview2_com::ProcessFailedEventHandler::create(Box::new(move |sender, args| {
             let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND(-1);
             if let Some(args) = args {
-                let _ = unsafe { args.ProcessFailedKind(&mut kind) };
+                let _ = args.ProcessFailedKind(&mut kind);
             }
             if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
                 // Fuera del hilo principal: así se cierran bien los plugins (instancia única) antes de relanzar.
@@ -932,12 +932,10 @@ fn reload_on_crash(app: &AppHandle, w: &WebviewWindow) {
                 if is_main {
                     SUSPENDED.store(false, std::sync::atomic::Ordering::SeqCst);
                 }
-                unsafe {
-                    if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
-                        let _ = c3.Resume();
-                    }
-                    let _ = core.Reload();
+                if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
+                    let _ = c3.Resume();
                 }
+                let _ = core.Reload();
             }
             Ok(())
         }));
