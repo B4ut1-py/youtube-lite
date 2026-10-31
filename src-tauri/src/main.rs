@@ -1095,6 +1095,12 @@ fn main() {
                 }
                 ok
             })
+            // Una página que se recarga con la ventana oculta (caída, vigilante, cambio de servicio) vuelve al modo ahorro.
+            .on_page_load(|w, p| {
+                if p.event() == tauri::webview::PageLoadEvent::Finished && !w.is_visible().unwrap_or(true) {
+                    set_main_idle(w.app_handle(), true);
+                }
+            })
             .on_new_window(|u, _| {
                 if allowed_in_app(&u) {
                     tauri::webview::NewWindowResponse::Allow
