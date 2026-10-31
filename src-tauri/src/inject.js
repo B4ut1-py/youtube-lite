@@ -34,7 +34,7 @@
   // así que se vuelve a aplicar cada vez que cambia. Si tocas el volumen de YouTube Music, manda YouTube.
   let lmVol = null, applying = false, fixes = [];
   const applyVol = (v) => {
-    if (lmVol === null || Math.abs(v.volume - lmVol) < 0.005) return;
+    if (lmVol === null || fadeV !== null || Math.abs(v.volume - lmVol) < 0.005) return;   // durante un fundido no se corrige
     const now = Date.now(); fixes = fixes.filter((x) => now - x < 1000); fixes.push(now);
     if (fixes.length > 20) { lmVol = null; return; }               // YouTube lo pelea sin parar: no insistir
     applying = true; v.volume = lmVol; applying = false;
@@ -62,6 +62,21 @@
     return { pos: num(v?.currentTime), dur: num(v?.duration) };
   };
   const click = (sel) => document.querySelector(sel)?.click();
+  // Fundido corto (~250 ms) al pausar o reanudar desde la app; al terminar deja el volumen como estaba.
+  // Si llega otra orden a mitad de un fundido, se parte del volumen original (nunca queda más bajo).
+  let fadeT = 0, fadeV = null;
+  const fade = (m, up, act) => {
+    if (!m) return act();
+    clearInterval(fadeT);
+    if (fadeV === null) fadeV = m.volume;
+    const v0 = fadeV, t0 = Date.now(), set = (x) => { applying = true; m.volume = x; applying = false; };
+    if (up) { set(0); act(); }
+    fadeT = setInterval(() => {
+      const k = Math.min(1, (Date.now() - t0) / 250);               // por tiempo: si el navegador lo frena, igual termina
+      set(v0 * (up ? k : 1 - k));
+      if (k >= 1) { clearInterval(fadeT); fadeV = null; if (!up) { act(); set(v0); } }
+    }, 25);
+  };
 
   // ---- Spotify: se lee el reproductor de la página (barra inferior) y se pulsan sus botones ----
   // Spotify necesita Widevine: si no está disponible se avisa una vez (en vez de que la música simplemente no arranque).
@@ -84,12 +99,14 @@
     };
   }
   const spMedia = () => spAudio;
+  const spLike = () => document.querySelector('[data-testid^="now-playing-widget"] button[aria-checked]');
+  const ytLike = () => document.querySelector('ytmusic-player-bar ytmusic-like-button-renderer');
   let spPrev = { pos: -1, at: 0, playing: false };
   const qs = (sel, root = document) => root.querySelector(sel);
   // Se prueba cada fuente en orden; la interfaz de Spotify cambia a menudo, así que ninguna es imprescindible.
   const spState = () => {
     const md = navigator.mediaSession?.metadata;
-    const w = qs(T('now-playing-widget')) || qs(T('now-playing-bar')) || qs('footer');
+    const w = qs('[data-testid^="now-playing-widget"]') || qs(T('now-playing-bar')) || qs('footer');
     const fromTitle = (document.title || '').split(' • ');                // "Canción • Artista" mientras suena
     const title = md?.title || qs(T('context-item-link'), w || document)?.textContent || qs('a[href*="/track/"]', w || document)?.textContent
       || (fromTitle.length > 1 ? fromTitle[0] : '');
@@ -119,7 +136,7 @@
       if (pos !== spPrev.pos) { spPrev = { pos, at: now, playing: pos > spPrev.pos && spPrev.pos >= 0 }; }
       playing = spPrev.playing && now - spPrev.at < 1500;
     }
-    return { title, artist, cover, playing, pos, dur };
+    return { title, artist, cover, playing, pos, dur, liked: spLike()?.getAttribute('aria-checked') === 'true' };
   };
   const spSeek = (f) => {
     const bar = document.querySelector(T('playback-progressbar'));
@@ -130,12 +147,14 @@
   };
 
   window.__lm = SP ? {
-    playPause: () => click(T('control-button-playpause')),
+    playPause: () => { const on = spState().playing; fade(spMedia(), !on, () => click(T('control-button-playpause'))); },
     next: () => click(T('control-button-skip-forward')),
     prev: () => click(T('control-button-skip-back')),
     setVolume: (f) => { const m = spMedia(); if (m) m.volume = Math.min(1, Math.max(0, f)); },
-    play: () => { if (!spState().playing) click(T('control-button-playpause')); },
-    pause: () => { if (spState().playing) click(T('control-button-playpause')); },
+    play: () => { if (!spState().playing) fade(spMedia(), true, () => click(T('control-button-playpause'))); },
+    pause: () => { if (spState().playing) fade(spMedia(), false, () => click(T('control-button-playpause'))); },
+    // Si ya está guardada, Spotify no la quita con un clic sino que abre su selector de listas: solo se agrega.
+    like: () => { const b = spLike(); if (b && b.getAttribute('aria-checked') !== 'true') b.click(); },
     times: () => { const s = spState(); return { pos: s.pos, dur: s.dur }; },
     seek: (f) => spSeek(f),
     setHidden: (h, full) => {
@@ -146,7 +165,8 @@
   } : {
     playPause: () => {
       const v = document.querySelector('video');
-      if (v && v.readyState > 0) { v.paused ? v.play() : v.pause(); } else click('.play-pause-button');
+      if (v && v.readyState > 0) v.paused ? fade(v, true, () => v.play()) : fade(v, false, () => v.pause());
+      else click('.play-pause-button');
     },
     next: () => click('.next-button'),
     prev: () => click('.previous-button'),
@@ -154,8 +174,9 @@
       lmVol = Math.min(1, Math.max(0, f));
       const v = document.querySelector('video'); if (v) { applying = true; v.volume = lmVol; applying = false; }
     },
-    play: () => { const v = document.querySelector('video'); if (v && v.paused) v.play(); },
-    pause: () => { const v = document.querySelector('video'); if (v && !v.paused) v.pause(); },
+    play: () => { const v = document.querySelector('video'); if (v && v.paused) fade(v, true, () => v.play()); },
+    pause: () => { const v = document.querySelector('video'); if (v && !v.paused) fade(v, false, () => v.pause()); },
+    like: () => ytLike()?.querySelector('#button-shape-like button')?.click(),
     times: () => readTimes(document.querySelector('video')),
     seek: (f) => { const v = document.querySelector('video'); const d = readTimes(v).dur; if (v && d) v.currentTime = f * d; },
     setHidden: (h, full) => {
@@ -171,17 +192,18 @@
   if (!invoke) return;
   let wanted = true, timer = 0, sent = null, sentAt = 0;
   const snapshot = () => {
-    if (SP) { const m = spMedia(); return { vol: m ? m.volume : 1, ...spState() }; }
+    if (SP) { const m = spMedia(); return { vol: m ? (fadeV ?? m.volume) : 1, ...spState() }; }
     const md = navigator.mediaSession?.metadata;
     const v = document.querySelector('video'); if (v) applyVol(v);
     const art = md?.artwork || [];
     const px = (a) => parseInt((a.sizes || '0').split('x')[0], 10) || 0;
     const cover = art.length ? art.reduce((b, a) => (px(a) >= px(b) ? a : b)).src : '';
-    return { title: md?.title || '', artist: md?.artist || '', cover, vol: v ? v.volume : 1, playing: !!v && !v.paused && !v.ended, ...readTimes(v) };
+    return { title: md?.title || '', artist: md?.artist || '', cover, vol: v ? (fadeV ?? v.volume) : 1, playing: !!v && !v.paused && !v.ended,
+      liked: ytLike()?.getAttribute('like-status') === 'LIKE', ...readTimes(v) };
   };
   const changed = (n) => {
     if (!sent) return true;
-    if (n.title !== sent.title || n.artist !== sent.artist || n.cover !== sent.cover || n.playing !== sent.playing) return true;
+    if (n.title !== sent.title || n.artist !== sent.artist || n.cover !== sent.cover || n.playing !== sent.playing || n.liked !== sent.liked) return true;
     if (Math.abs(n.dur - sent.dur) > 1 || Math.abs(n.vol - sent.vol) > 0.01) return true;
     const now = Date.now();
     const expected = sent.pos + (n.playing ? (now - sentAt) / 1000 : 0);

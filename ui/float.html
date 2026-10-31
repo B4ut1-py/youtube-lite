@@ -31,8 +31,9 @@
   body.kind-none #row { justify-content: center; gap: 14px; margin: 6px 0; }
   #pomo { margin: 4px 8px 0; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .6px; color: #ff6b6b; display: none;
           text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000, 1px 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000; }
-  #pomo.rest { color: #6bff9a; }
-  #volrow { margin: 7px auto 0; width: 150px; display: flex; align-items: center; gap: 8px; }
+  #pomo.rest { color: #6bff9a; } #pomo.sleep { color: #9fb8ff; }
+  #volrow { margin: 7px auto 0; width: 180px; display: flex; align-items: center; gap: 8px; }
+  .btn.sm, .btn.sm canvas { width: 22px; height: 22px; }
   #vicon { width: 22px; height: 22px; image-rendering: pixelated; filter: drop-shadow(0 0 2px #000a); }
   #vbar { flex: 1; height: 6px; position: relative; cursor: pointer; background: #0008; box-shadow: 0 0 0 2px #000a; }
   #vfill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: #fff; }
@@ -66,7 +67,7 @@
   <div id="title"><span>Lite Music</span></div>
   <div id="artist"></div>
   <div id="pomo"></div>
-  <div id="volrow" title="Volumen"><canvas id="vicon" width="11" height="11"></canvas><div id="vbar"><div id="vfill"></div></div></div>
+  <div id="volrow"><canvas id="vicon" width="11" height="11" title="Volumen (también con la rueda del mouse)"></canvas><div id="vbar" title="Volumen (también con la rueda del mouse)"><div id="vfill"></div></div><button class="btn sm" id="like" title="Me gusta"><canvas width="11" height="11"></canvas></button></div>
 </div>
 <script>
 const inv = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
@@ -188,12 +189,16 @@ function drawHead(skin, sleeping, c0, blink, yawn) {
     ell(c, cx + d * 3, 25, 1.2, 5, '#2a2233'); ell(c, cx + d * 2.8, 25, .7, 4, '#4a4262');          // almohadilla
   });
 }
-function drawGlyph(canvas, shape) {
+function drawGlyph(canvas, shape, fill = '#fff') {
   const c = canvas.getContext('2d');
   c.clearRect(0, 0, 11, 11);
   [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ox, oy]) => shape(c, ox, oy, '#000'));
-  shape(c, 0, 0, '#fff');
+  shape(c, 0, 0, fill);
 }
+const heartShape = (c, ox, oy, col) => {
+  c.fillStyle = col;
+  [[2, 2, 2], [7, 2, 2], [1, 3, 4], [6, 3, 4], [1, 4, 9], [1, 5, 9], [2, 6, 7], [3, 7, 5], [4, 8, 3], [5, 9, 1]].forEach(([x, y, w]) => c.fillRect(x + ox, y + oy, w, 1));
+};
 const skipShape = (dir) => (c, ox, oy, col) => {
   c.fillStyle = col;
   for (let i = 0; i < 4; i++) c.fillRect((dir > 0 ? 2 + i : 7 - i) + ox, 2 + i + oy, 1, 7 - 2 * i);
@@ -208,7 +213,7 @@ const speakerShape = (c, ox, oy, col) => {
 
 /* ---------- Estado ---------- */
 let CFG = { blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90, mood_min_s: 15, mood_max_s: 30, float_opacity: 1 };
-let skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '';
+let liked = null, skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '';
 let cover = '';
 function render(st) {
   if (st.cfg) { CFG = st.cfg; document.body.style.opacity = CFG.float_opacity; }
@@ -250,7 +255,11 @@ function render(st) {
     const m = Math.floor(st.pomo_left / 60), sec = String(st.pomo_left % 60).padStart(2, '0');
     pm.textContent = `${st.pomo_phase === 'focus' ? 'ESTUDIO' : 'DESCANSO'}  ${m}:${sec}`;
     pm.className = st.pomo_phase === 'focus' ? '' : 'rest'; pm.style.display = 'block';
+  } else if (st.sleep_left > 0) {
+    pm.textContent = `ZZZ  ${Math.floor(st.sleep_left / 60)}:${String(st.sleep_left % 60).padStart(2, '0')}`;
+    pm.className = 'sleep'; pm.style.display = 'block';
   } else pm.style.display = 'none';
+  if (st.liked !== liked) { liked = st.liked; drawGlyph(document.querySelector('#like canvas'), heartShape, liked ? '#ff4d7a' : '#fff'); }
   curVol = st.vol ?? 1;
   if (!draggingVol) document.getElementById('vfill').style.width = Math.round((st.vol ?? 1) * 100) + '%';
 }
@@ -439,6 +448,7 @@ window.addEventListener('mousemove', (e) => { if (draggingVol) setVol(e); });
 window.addEventListener('mouseup', () => { draggingVol = false; lv = null; });
 document.getElementById('prev').onclick = () => { trigger('prev'); inv('control', { action: 'prev' }); };
 document.getElementById('next').onclick = () => { trigger('next'); inv('control', { action: 'next' }); };
+document.getElementById('like').onclick = () => inv('control', { action: 'like' });
 document.getElementById('bar').onclick = (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   inv('control', { action: 'seek', value: (e.clientX - r.left) / r.width });
@@ -447,7 +457,8 @@ document.getElementById('bar').onclick = (e) => {
 // Rueda del ratón: achicar / agrandar el flotante
 document.body.addEventListener('wheel', (e) => {
   e.preventDefault();
-  inv('scale_float', { delta: e.deltaY < 0 ? 0.1 : -0.1 });
+  if (e.ctrlKey) inv('scale_float', { delta: e.deltaY < 0 ? 0.1 : -0.1 });
+  else inv('control', { action: 'volume_step', value: e.deltaY < 0 ? 0.05 : -0.05 });
 }, { passive: false });
 
 drawGlyph(document.querySelector('#prev canvas'), skipShape(-1));

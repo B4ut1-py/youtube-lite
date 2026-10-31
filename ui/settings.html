@@ -106,18 +106,19 @@ const TABS = [
       { type: 'num', key: 'pomo_focus_min', label: 'Estudio', unit: 'min', min: 1, max: 180 },
       { type: 'num', key: 'pomo_rest_min', label: 'Descanso', unit: 'min', min: 1, max: 60 },
       { type: 'button', label: 'Temporizador', desc: 'Cambia el flotante a "Estudiando" y a "Descansando" según la fase.', buttons: [['Iniciar', 'pomo_start', 'pri'], ['Detener', 'pomo_stop']] },
+      { type: 'button', label: 'Temporizador para dormir', desc: 'Pausa la música cuando termina. También en la bandeja y en el menú ⏾ Dormir.', buttons: [['15 min', 'sleep15'], ['30 min', 'sleep30'], ['1 hora', 'sleep60'], ['Cancelar', 'sleep0']] },
     ] ] },
   { id: 'sys', icon: '⚙️', name: 'Sistema', sub: 'Inicio, ventana y actualizaciones.', groups: [
     [
       { type: 'toggle', key: 'autostart', label: 'Iniciar con Windows', desc: 'Arranca minimizada en la bandeja.' },
       { type: 'choice', key: 'source', label: 'Servicio de música', desc: 'También desde la bandeja. Spotify se abre en la misma ventana; inicia sesión con tu cuenta de Spotify o con "Continuar con Google" (la misma cuenta de YouTube).', options: [['ytm', 'YouTube Music'], ['spotify', 'Spotify']] },
       { type: 'toggle', key: 'close_to_tray', label: 'Cerrar a la bandeja', desc: 'Al cerrar la ventana la música sigue sonando. Si lo apagas, cerrar sale de la app.' },
+      { type: 'toggle', key: 'notify_song', label: 'Avisar al cambiar de canción', desc: 'Una notificación de Windows con la canción nueva (no aparece si estás mirando la ventana).' },
+      { type: 'info', label: 'Atajos de teclado', desc: 'Ctrl+Alt+Mayús + Espacio: reproducir / pausar · → siguiente · ← anterior · ↑ ↓ volumen. Las teclas multimedia del teclado también funcionan. Clic del medio en el ícono de la bandeja: reproducir / pausar.' },
     ],
     [
       { type: 'toggle', key: 'idle_webview', label: 'Ahorro de memoria con la ventana oculta', desc: 'Pide a WebView2 que libere memoria mientras la ventana está en la bandeja.' },
       { type: 'toggle', key: 'idle_hide_ui', label: 'No dibujar la interfaz de la página al ocultarla', desc: 'La música sigue sonando. Apágalo si algo no responde al volver.' },
-      { type: 'toggle', key: 'suspend_idle', label: 'Congelar la página cuando no suena nada', desc: 'Con la ventana oculta y la música en pausa, la página se suspende por completo (casi 0 % de CPU). Se reactiva sola al mostrar la ventana o usar los controles del flotante o de la bandeja. Las teclas multimedia no la despiertan.' },
-      { type: 'num', key: 'suspend_after_s', label: 'Congelar tras', unit: 's', min: 30, max: 1800, dep: 'suspend_idle' },
       { type: 'toggle', key: 'destroy_float', label: 'Liberar el flotante cuando está oculto', desc: 'Se cierra su proceso (unos 25 MB) y reaparece en un instante al mostrarlo.' },
     ],
     [
@@ -137,7 +138,7 @@ async function act(a) {
   if (a.startsWith('link:')) return inv('open_link', { which: a.slice(5) });
   if (a === 'reset_settings' && !confirm('¿Restablecer todos los ajustes?')) return;
   await inv('settings_action', { action: a });
-  toast(a === 'check_update' ? 'Buscando… (si hay una nueva, aparece arriba en la ventana)' : a === 'pomo_start' ? 'Pomodoro iniciado' : a === 'pomo_stop' ? 'Pomodoro detenido' : 'Listo');
+  toast(a === 'check_update' ? 'Buscando… (si hay una nueva, aparece arriba en la ventana)' : a === 'pomo_start' ? 'Pomodoro iniciado' : a === 'pomo_stop' ? 'Pomodoro detenido' : a === 'sleep0' ? 'Temporizador cancelado' : a.startsWith('sleep') ? 'La música se pausará en ' + a.slice(5) + ' min' : 'Listo');
   if (a === 'reset_settings') await load();
 }
 

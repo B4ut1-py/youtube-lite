@@ -56,10 +56,9 @@ struct Settings {
     idle_webview: bool,
     idle_hide_ui: bool,
     destroy_float: bool,
-    suspend_idle: bool,
-    suspend_after_s: u64,
     source: String,
     welcomed: bool,
+    notify_song: bool,
 }
 
 impl Default for Settings {
@@ -68,7 +67,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, suspend_idle: true, suspend_after_s: 90, source: "ytm".into(), welcomed: false,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false,
         }
     }
 }
@@ -88,6 +87,9 @@ struct PlayerState {
     skin: String,
     pomo_phase: String,
     pomo_left: u64,
+    #[serde(default)]
+    liked: bool,
+    sleep_left: u64,
     cfg: Settings,
 }
 
@@ -112,6 +114,7 @@ struct AppState {
     float_visible: Mutex<bool>,
     pos_at: Mutex<Instant>,        // cuándo se informó por última vez el tiempo de la canción
     last_report: Mutex<Instant>,   // última vez que la página de música dio señales de vida
+    sleep_at: Mutex<Option<Instant>>, // temporizador para dormir: cuándo pausar
 }
 
 const FLOAT_W: f64 = 340.0;
@@ -158,7 +161,6 @@ fn set_source(app: &AppHandle, source: &str) {
     }
     app.state::<AppState>().settings.lock().unwrap().source = source.into();
     save_settings(app);
-    wake(app);
     if let Some(w) = main_window(app) {
         let _ = w.navigate(source_url(source).parse().unwrap());
         show(app);
@@ -456,13 +458,11 @@ fn stop_pomo(app: &AppHandle) {
     if !prev.is_empty() {
         set_skin_temp(app, &prev);
     }
-    if let Some(t) = app.tray_by_id("main") {
-        let _ = t.set_tooltip(Some("Lite Music"));
-    }
+    refresh_tooltip(app);
 }
 
 fn pomo_tick(app: &AppHandle) {
-    let (changed, phase, left) = {
+    let changed = {
         let st = app.state::<AppState>();
         let mut p = st.pomo.lock().unwrap();
         if p.phase == Phase::Off {
@@ -480,7 +480,7 @@ fn pomo_tick(app: &AppHandle) {
             }
             changed = Some(p.phase);
         }
-        (changed, p.phase, p.end.saturating_duration_since(now).as_secs())
+        changed
     };
     match changed {
         Some(Phase::Rest) => {
@@ -493,10 +493,7 @@ fn pomo_tick(app: &AppHandle) {
         }
         _ => {}
     }
-    if let Some(t) = app.tray_by_id("main") {
-        let name = if phase == Phase::Focus { "Estudio" } else { "Descanso" };
-        let _ = t.set_tooltip(Some(&format!("Lite Music — {name} {}:{:02}", left / 60, left % 60)));
-    }
+    refresh_tooltip(app);
 }
 
 // Un solo hilo con un latido por segundo: pomodoro, ocultarse en pantalla completa y guardar la posición.
@@ -505,7 +502,6 @@ fn start_ticker(app: AppHandle) {
     let mut last_title = String::new();
     let mut trim_at: Option<Instant> = None;
     let mut last_trim = Instant::now();
-    let mut quiet_since = Instant::now();
     let mut last_reload = Instant::now();
     let mut was_hidden = false;
     let mut extra_trim: Vec<Instant> = Vec::new();
@@ -516,17 +512,8 @@ fn start_ticker(app: AppHandle) {
             let st = app.state::<AppState>();
             let enabled = st.settings.lock().unwrap().idle_webview;
             let hidden = !w.is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst);
-            let (susp, after) = {
-                let c = st.settings.lock().unwrap();
-                (c.suspend_idle && c.idle_webview, c.suspend_after_s)
-            };
-            let playing = st.player.lock().unwrap().playing;
-            if playing || !hidden {
-                quiet_since = Instant::now();
-            }
-            let suspended = SUSPENDED.load(std::sync::atomic::Ordering::SeqCst);
             // Vigilante: si la página lleva un rato sin dar señales (se cortó la conexión y quedó la pantalla de error,
-            // o la página murió en segundo plano), se recarga sola. No toca la página de inicio de sesión ni la suspendida.
+            // o la página murió en segundo plano), se recarga sola. No toca la página de inicio de sesión.
             let (welcomed, source) = {
                 let c = st.settings.lock().unwrap();
                 (c.welcomed, c.source.clone())
@@ -534,7 +521,7 @@ fn start_ticker(app: AppHandle) {
             let on_service = w.url().map_or(false, |u| {
                 matches!(u.host_str(), Some("music.youtube.com") | Some("open.spotify.com")) || !matches!(u.scheme(), "http" | "https")
             });
-            if welcomed && !suspended && on_service
+            if welcomed && on_service
                 && st.last_report.lock().unwrap().elapsed() > Duration::from_secs(150)
                 && last_reload.elapsed() > Duration::from_secs(60)
             {
@@ -542,20 +529,13 @@ fn start_ticker(app: AppHandle) {
                 last_reload = Instant::now();
                 *st.last_report.lock().unwrap() = Instant::now();
             }
-            // Sin música y con la ventana oculta: se congela la página hasta que vuelva a hacer falta.
-            if susp && hidden && !playing && !suspended && quiet_since.elapsed() >= Duration::from_secs(after) {
-                set_webview_suspended(&w, true);
-                SUSPENDED.store(true, std::sync::atomic::Ordering::SeqCst);
-            } else if suspended && (!susp || !hidden) {
-                wake(&app);
-            }
             // Al ocultar la ventana se recorta enseguida (a los 5 y a los 30 s), sin esperar al ciclo periódico.
             if hidden && !was_hidden {
                 let now = Instant::now();
                 extra_trim = vec![now + Duration::from_secs(5), now + Duration::from_secs(30)];
             }
             was_hidden = hidden;
-            if enabled && hidden && !suspended {
+            if enabled && hidden {
                 let now = Instant::now();
                 if extra_trim.iter().any(|t| now >= *t) {
                     extra_trim.retain(|t| now < *t);
@@ -581,6 +561,20 @@ fn start_ticker(app: AppHandle) {
         }
         pomo_tick(&app);
         let st = app.state::<AppState>();
+        let sleep_due = {
+            let mut s = st.sleep_at.lock().unwrap();
+            let due = s.map_or(false, |t| Instant::now() >= t);
+            if due {
+                *s = None;
+            }
+            due
+        };
+        if sleep_due {
+            js(&app, "window.__lm&&window.__lm.pause()");
+        }
+        if sleep_due || st.sleep_at.lock().unwrap().is_some() {
+            refresh_tooltip(&app);
+        }
         let want = st.settings.lock().unwrap().autohide && fullscreen_busy();
         let changed = {
             let mut a = st.auto_hidden.lock().unwrap();
@@ -602,18 +596,87 @@ fn start_ticker(app: AppHandle) {
 // La página de YouTube Music informa de la canción; devuelve si el flotante está visible
 // (la página usa eso para consultar con menos frecuencia cuando no hace falta).
 #[tauri::command]
-fn report_state(state: tauri::State<AppState>, title: String, artist: String, cover: String, vol: f64, playing: bool, pos: f64, dur: f64) -> bool {
+fn report_state(app: AppHandle, state: tauri::State<AppState>, title: String, artist: String, cover: String, vol: f64, playing: bool, pos: f64, dur: f64, liked: bool) -> bool {
     *state.last_report.lock().unwrap() = Instant::now();
     *state.pos_at.lock().unwrap() = Instant::now();
-    let mut p = state.player.lock().unwrap();
-    p.title = title;
-    p.artist = artist;
-    p.cover = cover;
-    p.vol = vol;
-    p.playing = playing;
-    p.pos = pos;
-    p.dur = dur;
+    let (new_song, play_changed) = {
+        let mut p = state.player.lock().unwrap();
+        let new_song = !title.is_empty() && (title != p.title || artist != p.artist);
+        let play_changed = playing != p.playing;
+        p.title = title;
+        p.artist = artist;
+        p.cover = cover;
+        p.vol = vol;
+        p.playing = playing;
+        p.pos = pos;
+        p.dur = dur;
+        p.liked = liked;
+        (new_song, play_changed)
+    };
+    if new_song {
+        refresh_tooltip(&app);
+        notify_song(&app);
+    }
+    if play_changed {
+        thumbbar::update(&app, playing);
+    }
     *state.float_visible.lock().unwrap()
+}
+
+// Aviso de Windows con la canción nueva (opcional), solo si no estás mirando la ventana de la app.
+fn notify_song(app: &AppHandle) {
+    use tauri_plugin_notification::NotificationExt;
+    if !app.state::<AppState>().settings.lock().unwrap().notify_song || main_window(app).map_or(false, |w| w.is_focused().unwrap_or(false)) {
+        return;
+    }
+    let (title, artist) = {
+        let st = app.state::<AppState>();
+        let p = st.player.lock().unwrap();
+        (p.title.clone(), p.artist.clone())
+    };
+    let _ = app.notification().builder().title(title).body(artist).show();
+}
+
+// Texto al pasar el mouse por el ícono de la bandeja: canción actual, Pomodoro y temporizador para dormir.
+static LAST_TIP: Mutex<String> = Mutex::new(String::new());
+fn refresh_tooltip(app: &AppHandle) {
+    let st = app.state::<AppState>();
+    let mut t = {
+        let p = st.player.lock().unwrap();
+        match (p.title.is_empty(), p.artist.is_empty()) {
+            (true, _) => "Lite Music".to_string(),
+            (false, true) => p.title.clone(),
+            _ => format!("{} — {}", p.title, p.artist),
+        }
+    };
+    {
+        let pm = st.pomo.lock().unwrap();
+        if pm.phase != Phase::Off {
+            let left = pm.end.saturating_duration_since(Instant::now()).as_secs();
+            t += &format!("\n{} {}:{:02}", if pm.phase == Phase::Focus { "Estudio" } else { "Descanso" }, left / 60, left % 60);
+        }
+    }
+    if let Some(at) = *st.sleep_at.lock().unwrap() {
+        t += &format!("\nSe pausa en {} min", at.saturating_duration_since(Instant::now()).as_secs().div_ceil(60));
+    }
+    if let Some(v) = UPD.get().and_then(|u| u.lock().unwrap().version.clone()) {
+        t += &format!("\nVersión {v} disponible");
+    }
+    let t: String = t.chars().take(120).collect(); // Windows corta el texto en 127 caracteres
+    let mut last = LAST_TIP.lock().unwrap();
+    if *last != t {
+        if let Some(tr) = app.tray_by_id("main") {
+            let _ = tr.set_tooltip(Some(&t));
+        }
+        *last = t;
+    }
+}
+
+// Temporizador para dormir: pausa la música dentro de `min` minutos (0 = cancelar).
+fn set_sleep(app: &AppHandle, min: u64) {
+    let min = min.min(24 * 60); // tope: un número enorme desbordaría la hora y cerraría la app
+    *app.state::<AppState>().sleep_at.lock().unwrap() = (min > 0).then(|| Instant::now() + Duration::from_secs(min * 60));
+    refresh_tooltip(app);
 }
 
 #[tauri::command]
@@ -628,6 +691,7 @@ fn get_state(state: tauri::State<AppState>) -> PlayerState {
     p.pomo_phase = match pm.phase { Phase::Off => "off", Phase::Focus => "focus", Phase::Rest => "rest" }.into();
     p.cfg = state.settings.lock().unwrap().clone();
     p.pomo_left = if pm.phase == Phase::Off { 0 } else { pm.end.saturating_duration_since(Instant::now()).as_secs() };
+    p.sleep_left = state.sleep_at.lock().unwrap().map_or(0, |t| t.saturating_duration_since(Instant::now()).as_secs());
     p
 }
 
@@ -639,6 +703,11 @@ fn control(app: AppHandle, action: String, value: Option<f64>) {
         "prev" => "window.__lm&&window.__lm.prev()".to_string(),
         "volume" => format!("window.__lm&&window.__lm.setVolume({})", value.unwrap_or(1.0).clamp(0.0, 1.0)),
         "seek" => format!("window.__lm&&window.__lm.seek({})", value.unwrap_or(0.0).clamp(0.0, 1.0)),
+        "like" => "window.__lm&&window.__lm.like&&window.__lm.like()".to_string(),
+        "volume_step" => {
+            let v = app.state::<AppState>().player.lock().unwrap().vol + value.unwrap_or(0.0);
+            format!("window.__lm&&window.__lm.setVolume({})", v.clamp(0.0, 1.0))
+        }
         _ => return,
     };
     js(&app, &code);
@@ -668,9 +737,6 @@ fn set_update_available(app: &AppHandle, version: Option<String>) {
                     u.shown = true;
                 }
             }
-            if let Some(t) = app.tray_by_id("main") {
-                let _ = t.set_tooltip(Some(&format!("Lite Music: versión {v} disponible")));
-            }
         }
         None => {
             if u.shown {
@@ -682,16 +748,20 @@ fn set_update_available(app: &AppHandle, version: Option<String>) {
         }
     }
     u.version = version;
+    drop(u);
+    refresh_tooltip(app);
 }
 
 fn update_pending() -> bool {
     UPD.get().map_or(false, |u| u.lock().unwrap().version.is_some())
 }
 
+// Mensaje pasajero en el ícono de la bandeja; la próxima actualización del texto vuelve a mostrar la canción.
 fn say(app: &AppHandle, msg: &str) {
     if let Some(t) = app.tray_by_id("main") {
         let _ = t.set_tooltip(Some(msg));
     }
+    LAST_TIP.lock().unwrap().clear();
 }
 
 // Busca una versión nueva en GitHub y AVISA en la ventana y en la bandeja. Nunca instala por su cuenta.
@@ -699,7 +769,6 @@ async fn check_update(app: AppHandle, manual: bool) {
     let Ok(updater) = app.updater() else { return };
     match updater.check().await {
         Ok(Some(update)) => {
-            say(&app, &format!("Lite Music: versión {} disponible", update.version));
             set_update_available(&app, Some(update.version));
         }
         Ok(None) => {
@@ -775,12 +844,11 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "pomo_focus_min" => if let Some(v) = n { c.pomo_focus_min = (v as u64).clamp(1, 180) },
             "pomo_rest_min" => if let Some(v) = n { c.pomo_rest_min = (v as u64).clamp(1, 60) },
             "close_to_tray" => if let Some(v) = b { c.close_to_tray = v },
+            "notify_song" => if let Some(v) = b { c.notify_song = v },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
             "idle_webview" => if let Some(v) = b { c.idle_webview = v },
             "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
             "destroy_float" => if let Some(v) = b { c.destroy_float = v },
-            "suspend_idle" => if let Some(v) = b { c.suspend_idle = v },
-            "suspend_after_s" => if let Some(v) = n { c.suspend_after_s = (v as u64).clamp(30, 1800) },
             _ => {}
         }
     }
@@ -807,6 +875,7 @@ fn settings_action(app: AppHandle, action: String) {
             start_pomo(&app, f, r);
         }
         "pomo_stop" => stop_pomo(&app),
+        a if a.starts_with("sleep") => { if let Ok(m) = a[5..].parse() { set_sleep(&app, m) } }
         "check_update" => { let a = app.clone(); tauri::async_runtime::spawn(check_update(a, true)); }
         "install_update" => { tauri::async_runtime::spawn(install_update(app.clone())); }
         "reset_pos" => {
@@ -885,40 +954,19 @@ fn set_webview_memory(w: &WebviewWindow, low: bool) {
 #[cfg(not(windows))]
 fn set_webview_memory(_w: &WebviewWindow, _low: bool) {}
 
-// Suspende la página por completo (no ejecuta nada, como una pestaña congelada). Solo con la ventana oculta.
-static SUSPENDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-static MINIMIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-#[cfg(windows)]
-fn set_webview_suspended(w: &WebviewWindow, suspend: bool) {
-    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_3;
-    use windows_core::Interface;
-    let _ = w.with_webview(move |pw| unsafe {
-        if let Ok(core) = pw.controller().CoreWebView2() {
-            if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
-                if suspend {
-                    let h = webview2_com::TrySuspendCompletedHandler::create(Box::new(|_, _| Ok(())));
-                    let _ = c3.TrySuspend(&h);
-                } else {
-                    let _ = c3.Resume();
-                }
-            }
-        }
-    });
-}
-#[cfg(not(windows))]
-fn set_webview_suspended(_w: &WebviewWindow, _suspend: bool) {}
+// Ventana principal minimizada (se trata igual que oculta en la bandeja).
+static MINIMIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 // Si muere el proceso de la página (falta de memoria, fallo de WebView2) se recarga al momento: antes quedaba en blanco
 // y, con la ventana oculta, la música no volvía hasta abrirla. Si muere el navegador entero, la app se reinicia.
 #[cfg(windows)]
 fn reload_on_crash(app: &AppHandle, w: &WebviewWindow) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2_3, COREWEBVIEW2_PROCESS_FAILED_KIND, COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED,
+        COREWEBVIEW2_PROCESS_FAILED_KIND, COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED,
         COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
     };
-    use windows_core::Interface;
-    let (a, is_main) = (app.clone(), w.label() == "main");
+    let a = app.clone();
     let _ = w.with_webview(move |pw| unsafe {
         let Ok(core) = pw.controller().CoreWebView2() else { return };
         let h = webview2_com::ProcessFailedEventHandler::create(Box::new(move |sender, args| {
@@ -931,12 +979,6 @@ fn reload_on_crash(app: &AppHandle, w: &WebviewWindow) {
                 let a2 = a.clone();
                 std::thread::spawn(move || a2.restart());
             } else if let (true, Some(core)) = (kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED, sender) {
-                if is_main {
-                    SUSPENDED.store(false, std::sync::atomic::Ordering::SeqCst);
-                }
-                if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
-                    let _ = c3.Resume();
-                }
                 let _ = core.Reload();
             }
             Ok(())
@@ -947,17 +989,6 @@ fn reload_on_crash(app: &AppHandle, w: &WebviewWindow) {
 }
 #[cfg(not(windows))]
 fn reload_on_crash(_app: &AppHandle, _w: &WebviewWindow) {}
-
-// Despierta la página si estaba suspendida (antes de mostrarla o de enviarle una orden).
-fn wake(app: &AppHandle) {
-    if SUSPENDED.swap(false, std::sync::atomic::Ordering::SeqCst) {
-        *app.state::<AppState>().last_report.lock().unwrap() = Instant::now();
-        if let Some(w) = main_window(app) {
-            set_webview_suspended(&w, false);
-            set_webview_idle(&w, true);
-        }
-    }
-}
 
 // Llama a métodos del protocolo de depuración de WebView2 (solo para ahorrar memoria; no abre ninguna herramienta).
 #[cfg(windows)]
@@ -986,7 +1017,6 @@ fn stop_service_workers(w: &WebviewWindow) {
 fn set_main_idle(app: &AppHandle, idle: bool) {
     let Some(w) = main_window(app) else { return };
     if !idle {
-        wake(app);
     }
     let st = app.state::<AppState>();
     let (webview, ui) = {
@@ -1015,7 +1045,6 @@ fn hide(app: &AppHandle, w: &WebviewWindow) {
 
 fn js(app: &AppHandle, code: &str) {
     if let Some(w) = main_window(app) {
-        wake(app);
         let _ = w.eval(code);
     }
 }
@@ -1045,6 +1074,7 @@ fn on_menu(app: &AppHandle, id: &str) {
         "pomo25" => start_pomo(app, 25, 5),
         "pomo50" => start_pomo(app, 50, 10),
         "pomo0" => stop_pomo(app),
+        id if id.starts_with("sleep") => { if let Ok(m) = id[5..].parse() { set_sleep(app, m) } } // "sleep30" = en 30 min, "sleep0" = cancelar
         "cfg" => open_settings(app),
         "upd" => {
             let a = app.clone();
@@ -1062,13 +1092,35 @@ fn on_menu(app: &AppHandle, id: &str) {
     }
 }
 
+const HOTKEY_MODS: tauri_plugin_global_shortcut::Modifiers = tauri_plugin_global_shortcut::Modifiers::CONTROL
+    .union(tauri_plugin_global_shortcut::Modifiers::ALT)
+    .union(tauri_plugin_global_shortcut::Modifiers::SHIFT);
+
+fn on_hotkey(app: &AppHandle, sc: &tauri_plugin_global_shortcut::Shortcut) {
+    use tauri_plugin_global_shortcut::Code;
+    for (code, action, step) in [(Code::Space, "playpause", 0.0), (Code::ArrowRight, "next", 0.0), (Code::ArrowLeft, "prev", 0.0),
+                                 (Code::ArrowUp, "volume_step", 0.1), (Code::ArrowDown, "volume_step", -0.1)] {
+        if sc.matches(HOTKEY_MODS, code) {
+            control(app.clone(), action.into(), Some(step));
+        }
+    }
+}
+
+mod thumbbar;
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action, choose_source, open_link])
-        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()), pos_at: Mutex::new(Instant::now()) })
+        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()), pos_at: Mutex::new(Instant::now()), sleep_at: Mutex::new(None) })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, sc, ev| {
+            if ev.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                on_hotkey(app, sc);
+            }
+        }).build())
         .on_menu_event(|app, ev| {
             if let Some(id) = ev.id.as_ref().strip_prefix("w_") {
                 on_menu(app, id);
@@ -1190,9 +1242,12 @@ fn main() {
             let p2 = MenuItem::with_id(app, "pomo50", "Iniciar 50 min estudio / 10 descanso", true, None::<&str>)?;
             let p3 = MenuItem::with_id(app, "pomo0", "Detener", true, None::<&str>)?;
             let m_pomo = Submenu::with_items(app, "Pomodoro", true, &[&p1, &p2, &p3])?;
+            let sl = |id: &str, t: &str| MenuItem::with_id(app, id, t, true, None::<&str>);
+            let m_sleep = Submenu::with_items(app, "Temporizador para dormir", true, &[&sl("sleep15", "En 15 min")?, &sl("sleep30", "En 30 min")?,
+                &sl("sleep60", "En 1 hora")?, &sl("sleep90", "En 1 h 30 min")?, &PredefinedMenuItem::separator(app)?, &sl("sleep0", "Cancelar")?])?;
             let m_quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_src, &m_float, &m_skin, &m_size, &m_pomo, &sep, &m_cfg, &m_upd, &sep, &m_quit])?;
+            let menu = Menu::with_items(app, &[&m_show, &sep, &m_pp, &m_prev, &m_next, &sep, &m_src, &m_float, &m_skin, &m_size, &m_pomo, &m_sleep, &sep, &m_cfg, &m_upd, &sep, &m_quit])?;
 
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -1201,13 +1256,12 @@ fn main() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, ev| on_menu(app, ev.id.as_ref()))
                 .on_tray_icon_event(|tray, ev| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = ev
-                    {
-                        show(tray.app_handle());
+                    if let TrayIconEvent::Click { button, button_state: MouseButtonState::Up, .. } = ev {
+                        match button {
+                            MouseButton::Left => show(tray.app_handle()),
+                            MouseButton::Middle => js(tray.app_handle(), "window.__lm&&window.__lm.playPause()"),
+                            _ => {}
+                        }
                     }
                 })
                 .build(app)?;
@@ -1235,8 +1289,24 @@ fn main() {
             sm_pomo.append(&mi("w_pomo50", "Iniciar 50 min estudio / 10 descanso")?)?;
             sm_pomo.append(&mi("w_pomo0", "Detener")?)?;
             bar.append(&sm_pomo)?;
+            let sm_sleep = Submenu::new(app, "⏾  Dormir", true)?;
+            for (id, t) in [("sleep15", "Pausar en 15 min"), ("sleep30", "Pausar en 30 min"), ("sleep60", "Pausar en 1 hora"),
+                            ("sleep90", "Pausar en 1 h 30 min"), ("sleep0", "Cancelar")] {
+                sm_sleep.append(&mi(&format!("w_{id}"), t)?)?;
+            }
+            bar.append(&sm_sleep)?;
             let _ = window.set_menu(bar.clone());
             let _ = UPD.set(Mutex::new(UpdUi { menu: bar, bar_item: mi("w_update", "⬆  Nueva versión disponible")?, tray_item: m_upd_tray, shown: false, version: None }));
+
+            // Atajos globales: Ctrl+Alt+Mayús + Espacio / → / ← / ↑ / ↓. Con Mayús para no chocar con AltGr ni con
+            // Ctrl+Alt+flechas (girar la pantalla en algunos equipos). Si otra app ya usa uno, ese queda sin registrar.
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut};
+                for code in [Code::Space, Code::ArrowRight, Code::ArrowLeft, Code::ArrowUp, Code::ArrowDown] {
+                    let _ = app.global_shortcut().register(Shortcut::new(Some(HOTKEY_MODS), code));
+                }
+            }
+            thumbbar::install(app.handle(), &window);
 
             start_ticker(app.handle().clone());
 
