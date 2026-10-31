@@ -1,5 +1,5 @@
 /* Estilo Cristal (Liquid Glass) para Spotify. Solo apariencia: nada cambia de lugar ni de tamaño.
-   Se arma con los archivos de diseño por sección; lo aplica inject.js cuando el ajuste "glass" está en "art". */
+   Se arma con los archivos de diseño por sección; lo aplica inject.js cuando el Cristal está prendido (html.lm-glass; html.lm-light con fondo claro). */
 
 /* Maqueta: Spotify con estilo Cristal (tipo Apple "Liquid Glass").
    Solo apariencia. Usa únicamente identificadores estables de Spotify (id, data-testid y variables de color),
@@ -7,29 +7,52 @@
 :root {
   --g-panel: rgba(28, 28, 36, .30); --g-fill: rgba(255, 255, 255, .08); --g-fill-2: rgba(255, 255, 255, .14);
   --g-rim: rgba(255, 255, 255, .32); --g-rim-2: rgba(255, 255, 255, .07);
-  --g-shadow: 0 10px 30px rgba(0, 0, 0, .28), 0 1px 3px rgba(0, 0, 0, .18);
+  --g-shadow: 0 2px 6px rgba(0, 0, 0, .3);   /* corto: los paneles están a 8px unos de otros y cada contenedor recorta lo que se pasa */
+  --g-layer: rgba(36, 36, 46, .86); --g-layer-shadow: 0 16px 40px rgba(0, 0, 0, .4);   /* capas que flotan (menús, desplegables, diálogos, avisos): casi opacas */
+  --g-head: rgba(16, 16, 24, .88); --g-hl: rgba(255, 255, 255, .08); --g-press: rgba(255, 255, 255, .04);
+  --g-solid: color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #1c1c24); --g-text: #fff; --g-text-2: rgba(255, 255, 255, .72); --g-accent: #539df5; --g-scroll: rgba(255, 255, 255, .22); --g-card-shadow: rgba(0, 0, 0, .3);
+}
+/* Modo claro: vidrio blanco translúcido, sombras suaves, texto e iconos oscuros por las variables encore */
+html.lm-light {
+  --g-panel: rgba(255, 255, 255, .42); --g-fill: rgba(255, 255, 255, .5); --g-fill-2: rgba(255, 255, 255, .78);
+  --g-rim: rgba(255, 255, 255, .95); --g-rim-2: rgba(30, 40, 70, .1);
+  --g-shadow: 0 2px 6px rgba(30, 40, 70, .16);
+  --g-layer: rgba(250, 251, 255, .9); --g-layer-shadow: 0 14px 36px rgba(30, 40, 70, .22);
+  --g-head: rgba(246, 248, 253, .92); --g-hl: rgba(30, 40, 70, .07); --g-press: rgba(30, 40, 70, .12);
+  --g-solid: color-mix(in srgb, var(--lm-tint, #dfe3ee) 60%, #fff); --g-text: #15171f; --g-text-2: #4a5064; --g-accent: #0b5cc8; --g-scroll: rgba(30, 40, 70, .28); --g-card-shadow: rgba(30, 40, 70, .2);
+}
+html.lm-light.encore-dark-theme, html.lm-light .encore-dark-theme {
+  --text-base: #15171f; --text-subdued: #4a5064; --text-bright-accent: #0d7a37; --text-positive: #0d7a37; --text-negative: #b3261e; --text-warning: #8a5300; --text-announcement: #0b5cc8;
+  --essential-base: #15171f; --essential-subdued: #5c6378; --essential-bright-accent: #0d7a37; --essential-announcement: #0b5cc8;
+  --decorative-base: #15171f; --decorative-subdued: #cfd5e4;
+  --background-base: #e8ebf3; --background-highlight: #dde1ec; --background-press: #cdd3e2;
+  --background-elevated-base: #f4f6fb; --background-elevated-highlight: #e8ebf3; --background-elevated-press: #dde1ec;
+  --background-tinted-base: #1e28460f; --background-tinted-highlight: #1e284618; --background-tinted-press: #1e284624;
 }
 
-/* 1. Fondo: la carátula de la canción, enorme y desenfocada */
+/* 1. Fondo fijo (oscuro, claro o color elegido) */
 html, body, #main, [data-testid="root"], [data-testid="root"] > div, #global-nav-bar,
 #Desktop_LeftSidebar_Id, #Desktop_PanelContainer_Id, [data-testid="root"] > div > div:has(> [data-testid="now-playing-bar"]),
 [data-testid="root"] div:has(#Desktop_PanelContainer_Id, #main-view, #Desktop_LeftSidebar_Id) {   /* contenedores que envuelven los paneles */
   background: transparent !important; }
 #Desktop_PanelContainer_Id::before, #Desktop_PanelContainer_Id::after { background: transparent !important; }   /* fondo del panel derecho */
-html::before { content: ""; position: fixed; inset: -160px; z-index: -2; background: #101018 var(--lm-cover) center / cover;
-  filter: blur(90px) saturate(1.9) brightness(.6); }
-html::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(70% 55% at 85% 5%, rgba(255, 255, 255, .07), transparent 70%), linear-gradient(rgba(10, 10, 16, .1), rgba(10, 10, 16, .5)); }
+html::before { content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;   /* fondo fijo: --lm-tint lo pone la app (oscuro, claro o color elegido) */
+  background: radial-gradient(70% 60% at 12% 8%, color-mix(in srgb, var(--lm-tint, #262a3d) 70%, #fff), transparent 70%),
+    radial-gradient(60% 70% at 92% 92%, color-mix(in srgb, var(--lm-tint, #262a3d) 65%, #000), transparent 72%),
+    linear-gradient(160deg, color-mix(in srgb, var(--lm-tint, #262a3d) 88%, #fff), color-mix(in srgb, var(--lm-tint, #262a3d) 80%, #000)); }
+html::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(rgba(10, 10, 16, .08), rgba(10, 10, 16, .32)); }
+html.lm-light::after { background: linear-gradient(rgba(255, 255, 255, .1), rgba(255, 255, 255, .25)); }
 
 /* 2. Los tres paneles y el reproductor: vidrio con canto iluminado y esquinas grandes.
    Sin desenfoque en vivo: detrás solo está el fondo, que ya viene desenfocado (se ve igual y gasta mucho menos). */
 #Desktop_LeftSidebar_Id > nav > div:first-child, #main-view, #Desktop_PanelContainer_Id > div, [data-testid="now-playing-bar"] {
-  --background-base: transparent; --background-highlight: rgba(255, 255, 255, .08); --background-press: rgba(255, 255, 255, .04);
-  --background-tinted-base: rgba(255, 255, 255, .09); --background-tinted-highlight: rgba(255, 255, 255, .15);
-  --background-elevated-base: rgba(255, 255, 255, .1); --background-elevated-highlight: rgba(255, 255, 255, .16);
+  --background-base: transparent; --background-highlight: var(--g-hl); --background-press: var(--g-press);
+  --background-tinted-base: var(--g-fill); --background-tinted-highlight: var(--g-fill-2);
+  --background-elevated-base: var(--g-fill); --background-elevated-highlight: var(--g-fill-2);
   background: var(--g-panel) !important;
   border-radius: 22px !important; overflow: clip !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), inset 1px 0 0 var(--g-rim-2), inset -1px 0 0 var(--g-rim-2), var(--g-shadow) !important; }
-[data-testid="now-playing-bar"] { border-radius: 999px !important; overflow: clip !important; }
+/* barra de reproducción: radio 22 y carátula a 8px de cada borde con radio 14 (22 - 8): concéntricos, la esquina no se asoma */
+[data-testid="now-playing-bar"] { border-radius: 22px !important; overflow: clip !important; }
 /* franja de color de cada página (arriba del panel central): fuera, el color ya lo da la carátula de fondo */
 #main-view div[style*="background-color"] { opacity: 0; }
 
@@ -40,10 +63,10 @@ html::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-event
 
 /* 4. Carátulas con esquinas suaves y sombra */
 #main-view [data-testid="card-image"], #main-view img[data-testid="card-image"], #Desktop_PanelContainer_Id [data-testid="cover-art-image"] {
-  border-radius: 12px !important; box-shadow: 0 12px 28px rgba(0, 0, 0, .3); }
+  border-radius: 12px !important; box-shadow: 0 2px 8px var(--g-card-shadow); }
 
 /* 5. Barras de desplazamiento finas y translúcidas */
-html, * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .22) transparent; }
+html, * { scrollbar-width: thin; scrollbar-color: var(--g-scroll) transparent; }
 
 /* sombra de borde de las filas que se desplazan de costado: era un degradé gris pensado para el fondo opaco */
 #main-view div[style*="--scrollAnimationRangeStart"]::after { background-image: none !important; }
@@ -52,15 +75,15 @@ html, * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .22) trans
 div:has(> div > img[data-testid="card-image"]) { border-radius: 12px !important; overflow: clip !important; }
 
 /* carátulas chicas (menos de 64px): radio 8px, recortadas */
-#Desktop_LeftSidebar_Id img[data-testid="entity-image"], [data-testid="now-playing-bar"] [data-testid="cover-art-image"] { border-radius: 8px !important; }
-div:has(> img[data-testid="entity-image"]), [data-testid="now-playing-bar"] div:has(> img[data-testid="cover-art-image"]) { border-radius: 8px !important; overflow: clip !important; }
+#Desktop_LeftSidebar_Id img[data-testid="entity-image"] { border-radius: 8px !important; }
+div:has(> img[data-testid="entity-image"]) { border-radius: 8px !important; overflow: clip !important; }
 #Desktop_LeftSidebar_Id [role="row"], #Desktop_LeftSidebar_Id [role="row"] > div { border-radius: 12px; }
-[data-testid="now-playing-bar"] [data-testid="cover-art-container"], [data-testid="now-playing-bar"] [data-testid="cover-art-container"] :is(button, div) { border-radius: 8px !important; overflow: clip !important; }
+[data-testid="now-playing-bar"] [data-testid="cover-art-container"], [data-testid="now-playing-bar"] [data-testid="cover-art-container"] :is(button, div, img) { border-radius: 14px !important; overflow: clip !important; }
 /* teclas de atajo dentro del buscador: su aro era una sombra interior (parecía otro vidrio); ahora es un aro simple */
 #global-nav-bar kbd { box-shadow: 0 0 0 1px var(--g-rim-2) !important; }
 
 /* cabeceras que se quedan arriba mientras se desplaza: eran opacas con el color base; al volverlo transparente el contenido pasaba por debajo del título */
-#main-view div[style*="opacity"]:empty, #Desktop_PanelContainer_Id > div > div:first-child { background-color: rgba(16, 16, 24, .78) !important; }   /* vidrio oscuro: acompaña el tono de cualquier carátula */
+#main-view div[style*="opacity"]:empty, #Desktop_PanelContainer_Id > div > div:first-child { background-color: var(--g-head) !important; }   /* vidrio oscuro: acompaña el tono de cualquier carátula */
 /* el color de carga detrás de cada carátula se filtraba como un halo en el borde curvo: transparente */
 div:has(> img[data-testid="entity-image"]), div:has(> img[data-testid="cover-art-image"]), div:has(> div > img[data-testid="card-image"]) { background-color: transparent !important; }
 /* fila abierta o seleccionada de la biblioteca: su resaltado con la misma curva que la fila */
@@ -137,10 +160,10 @@ div:has(> img[data-testid="entity-image"]), div:has(> img[data-testid="cover-art
 
 /* Menus contextuales (capa pasajera: backdrop-filter permitido) */
 [role=menu] {
-  background: rgba(36, 36, 46, .72) !important;
+  background: var(--g-layer) !important;
   -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid transparent !important; border-radius: 16px !important; overflow: clip;
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 16px 40px rgba(0, 0, 0, .4) !important; }
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow) !important; }
 [role=menu] [role=menuitem] { border-radius: 10px !important; transition: background-color .15s; }
 [role=menu] [role=menuitem]:hover, [role=menu] [role=menuitem]:focus-visible, [role=menu] [role=menuitem][aria-expanded=true] {
   background: var(--g-fill-2) !important; }
@@ -148,22 +171,19 @@ div:has(> img[data-testid="entity-image"]), div:has(> img[data-testid="cover-art
 
 /* Dialogos */
 [role=dialog], [role=alertdialog] {
-  background: rgba(34, 34, 44, .78) !important;
+  background: var(--g-layer) !important;
   -webkit-backdrop-filter: blur(28px) saturate(1.5); backdrop-filter: blur(28px) saturate(1.5);
   border-radius: 24px !important; overflow: clip;
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 24px 60px rgba(0, 0, 0, .5) !important; }
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow) !important; }
 
 /* Tooltips */
 [role=tooltip], [data-tippy-root] [data-testid=tooltip], [data-tippy-root] > [data-state] {
   border-radius: 10px !important; }
 [role=tooltip] {
-  background: rgba(40, 40, 50, .8) !important;
+  background: var(--g-layer) !important;
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 6px 18px rgba(0, 0, 0, .35) !important; }
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 6px 18px rgba(0, 0, 0, .25) !important; }
 
-/* Avisos (toasts) */
-[data-testid=toast-wrapper], [role=alert], [role=status][data-encore-id] {
-  border-radius: 999px; }
 
 /* Cola y panel derecho en modo cola: filas */
 #Desktop_PanelContainer_Id [data-encore-id=listRow] { border-radius: 12px !important; overflow: clip; }
@@ -177,7 +197,83 @@ main [style*="--lyrics-color-background"] > div:empty {
 
 /* Vista ampliada (Reproduciendo ahora en el centro): Spotify enmarca con un contorno negro de 8px; se vuelve transparente.
    Solo cambia el color de contorno de los ancestros del boton de biografia (los focos usan su propio contorno). */
-#main div:has([data-testid="npv-artist-bio-button"]) { outline-color: transparent; }
+#main div:is(:has([data-testid="npv-artist-bio-button"]), :has([data-testid="lyrics-line"])) { outline-color: transparent; }
 
 /* Cabecera del panel derecho (Cola, Reproduciendo): Spotify la pinta de un color solido; vuelve transparente sobre el vidrio del panel */
 #Desktop_PanelContainer_Id > div div:has(> div h1):has([data-testid="PanelHeader_CloseButton"]) { background: transparent !important; }
+
+/* Modo claro: Spotify pinta en blanco los enlaces sin data-encore-id y en gris claro el cuerpo: pasan a las variables oscuras.
+   El texto de las carátulas (Mix diario 1) y los botones de acento no cambian. */
+html.lm-light body, html.lm-light main { color: var(--text-subdued); }
+html.lm-light a:not([data-encore-id]) { color: var(--text-base); }
+
+/* Panel derecho cerrado (la franja con la flecha "<"): era un rectángulo #121212 al 90 %; ahora vidrio con el mismo canto que los paneles */
+div:has(> button[aria-label="Mostrar la vista Sonando"]) {
+  /* el panel cerrado sigue detrás (fuera de pantalla): la franja lleva el tono del fondo opaco, para que no se transparente */
+  background: var(--g-solid) !important; opacity: 1 !important; border-radius: 22px !important; overflow: clip !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), inset 1px 0 0 var(--g-rim-2), var(--g-shadow) !important; }
+div:has(> div > button[aria-label="Mostrar la vista Sonando"]), div:has(> div > div > button[aria-label="Mostrar la vista Sonando"]) { border-radius: 22px !important; }
+
+/* Desplegable del buscador: era un bloque gris #2a2a2a de 8px de radio; ahora la misma capa de vidrio que los menús */
+[data-testid="search-dropdown"] > div:first-child {
+  background: var(--g-layer) !important; border-radius: 20px !important; overflow: clip !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow) !important; }
+[data-testid="search-dropdown"] [role="row"] { border-radius: 12px !important; }
+[data-testid="search-dropdown"] [role="row"]:is(:hover, :focus-within, [aria-selected="true"]) { background: var(--g-fill-2) !important; }
+
+/* Avisos y banners (antes un rectángulo azul plano, o toast de 999px): misma capa de vidrio de los menús con un acento azul suave en el borde y el icono */
+[data-encore-id="banner"], [class~="encore-announcement-set"], [data-testid="toast-wrapper"], [role="alert"], [role="status"][data-encore-id] {
+  --background-base: transparent; --background-announcement: transparent; --text-base: var(--g-text); --text-subdued: var(--g-text-2); --essential-base: var(--g-text); --essential-announcement: var(--g-accent);
+  background: var(--g-layer) !important; color: var(--g-text) !important; border-radius: 18px !important; overflow: clip;
+  -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g-accent) 55%, transparent), inset 0 1px 0 var(--g-rim), var(--g-layer-shadow) !important; }
+:is([data-encore-id="banner"], [class~="encore-announcement-set"], [data-testid="toast-wrapper"]) svg { color: var(--g-accent); fill: currentColor; }
+:is([data-encore-id="banner"], [class~="encore-announcement-set"], [data-testid="toast-wrapper"]) a { color: var(--g-text) !important; }
+
+/* Panel derecho con vídeo (el vídeo es negro y los textos van encima): en modo claro, textos claros sobre el vídeo y oscuros en la cabecera */
+html.lm-light #Desktop_PanelContainer_Id:has(video) { --text-base: #fff; --text-subdued: rgba(255, 255, 255, .72); --essential-base: #fff; --essential-subdued: rgba(255, 255, 255, .7); }
+html.lm-light #Desktop_PanelContainer_Id > div > div:first-child { --text-base: #15171f; --text-subdued: #4a5064; --essential-base: #15171f; --essential-subdued: #5c6378; }
+/* tarjeta "Vista previa de la letra": lleva el color de la canción; esquinas de tarjeta de panel y canto de luz */
+#Desktop_PanelContainer_Id [data-testid="lyrics-npv-section"] { border-radius: 16px !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }
+/* modo claro, Cola: el texto de "Recomendaciones e impacto de la promoción" es un botón con blanco fijo */
+html.lm-light #Desktop_PanelContainer_Id [role="tabpanel"] button:not([data-encore-id], [data-testid]) > span { color: var(--text-subdued); }
+/* Letra a pantalla del centro: el fondo lo da el color de la canción; en modo claro el título y los iconos de arriba siguen el color de la letra, no el del sitio */
+/* Letra en el centro: el panel tenía 8px de radio y el vidrio de los demás paneles es 22 */
+#main div:is(:has([data-testid="lyrics-line"]), :has([data-testid="npv-artist-bio-button"]), :has([data-testid="lyrics-button"])):not(:has(#global-nav-bar), #Desktop_PanelContainer_Id *) { border-radius: 22px !important; overflow: clip; }
+
+/* Tarjeta "Vista previa de la letra": vidrio con un tinte suave del color de la canción; los textos siguen --g-text en los tres fondos */
+#Desktop_PanelContainer_Id [data-testid="lyrics-npv-section"] {
+  --lyrics-color-active: var(--g-text); --lyrics-color-passed: var(--g-text-2); --lyrics-color-inactive: var(--g-text-2); --lyrics-color-messaging: var(--g-text-2);
+  --text-base: var(--g-text); --text-subdued: var(--g-text-2); --essential-base: var(--g-text);
+  background: color-mix(in srgb, var(--lyrics-color-background, transparent) 22%, var(--g-layer)) !important; color: var(--g-text);
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 6px 18px rgba(0, 0, 0, .15) !important; }
+/* barra de reproducción en claro: tiempos, título y artista con los colores oscuros */
+html.lm-light [data-testid="now-playing-bar"] { color: var(--text-base); --text-subdued: #3d4357; }
+html.lm-light [data-testid="now-playing-bar"] :is([data-testid="playback-position"], [data-testid="playback-duration"], [data-testid="now-playing-widget-v2-byline"], [data-testid="now-playing-widget-v2"] a ) { color: #3d4357 !important; }
+#Desktop_PanelContainer_Id [data-testid="lyrics-npv-section"] :is(h2, div, span, p, a) { color: var(--g-text) !important; }
+#Desktop_PanelContainer_Id [data-testid="lyrics-npv-section"] h2 { color: var(--g-text-2) !important; }
+/* Letra en el centro: el fondo plano del color de la canción pasa a vidrio con un tinte suave; textos con los colores del vidrio */
+#main [style*="--lyrics-color-background"] { --lyrics-color-active: var(--g-text) !important; --lyrics-color-passed: var(--g-text-2) !important; --lyrics-color-inactive: var(--g-text-2) !important; --lyrics-color-messaging: var(--g-text-2) !important;
+  --text-base: var(--g-text) !important; --text-subdued: var(--g-text-2) !important; --essential-base: var(--g-text) !important; --essential-subdued: var(--g-text-2) !important; }
+#main [style*="--lyrics-color-background"] > div:empty { background: color-mix(in srgb, var(--lyrics-color-background) 22%, var(--g-solid)) !important; }
+#main div:has(> [style*="--cinema-mode-bg-color-from"]) { background: transparent !important; }
+/* modo claro: los botones de los menús (Cuenta, Cerrar sesión) traen blanco fijo al 90 % */
+html.lm-light :is([role="menu"], [data-testid="user-widget-menu"]) :is(button, a, button span, a span) { color: var(--text-base) !important; }
+
+/* Sombras que el contenedor recortaba (se veían rectas o cortadas): la sombra de 60px de Spotify en las carátulas chicas, la de la carátula de la barra y la de las tarjetas de panel */
+div:has(> img[data-testid="entity-image"]), div:has(> img[data-testid="cover-art-image"]), [data-testid="now-playing-bar"] [data-testid="cover-art-container"] * { box-shadow: none !important; }
+#Desktop_PanelContainer_Id [data-testid="lyrics-npv-section"] { box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2) !important; }
+#Desktop_PanelContainer_Id [data-testid="cover-art-image"], #Desktop_PanelContainer_Id img[data-testid="cover-art-image"] { box-shadow: none !important; }
+/* panel derecho: su contenedor (aside) lo recorta al ras, sin lugar para sombra exterior */
+#Desktop_PanelContainer_Id > div { box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), inset 1px 0 0 var(--g-rim-2), inset -1px 0 0 var(--g-rim-2) !important; }
+/* sombra de 24px de las carátulas de las filas: el carrusel la recortaba; corta y con el mismo radio */
+#main-view div:has(> img[data-testid="card-image"]) { box-shadow: 0 2px 8px var(--g-card-shadow) !important; }
+
+/* Barra de reproducción en claro: los botones de la derecha (letra, cola, dispositivo, miniventana, pantalla completa) traían blanco fijo */
+html.lm-light [data-testid="now-playing-bar"] button:not([aria-pressed="true"]):not([data-active="true"]):not([data-testid="control-button-playpause"]) { color: var(--g-text-2) !important; }
+html.lm-light [data-testid="now-playing-bar"] button:not([aria-pressed="true"]):not([data-active="true"]):not([data-testid="control-button-playpause"]):hover { color: var(--g-text) !important; }
+/* progreso y volumen en claro: pista y relleno oscuros (Spotify los fija en blanco) */
+html.lm-light [data-testid="now-playing-bar"] [data-testid="progress-bar"] * { --bg-color: rgba(30, 40, 70, .18); --fg-color: #3d4357; }
+/* franja cerrada: 8px de aire con el borde derecho de la ventana y 8px con el panel central */
+div:has(> button[aria-label="Mostrar la vista Sonando"]) { width: 32px !important; }

@@ -41,7 +41,7 @@
   html.glass { --bar: transparent; --seg: var(--tint); --segOn: rgba(255, 255, 255, .24); }
   html.glass.light { --segOn: rgba(255, 255, 255, .8); }
   html.glass header { border-bottom-color: var(--rim2); }
-  html.glass #lm-art img { left: -20%; top: -100%; width: 140%; height: 300%; }   /* la barra es una franja: se toma un tramo de la carátula */
+  html.glass #lm-art { background-size: 100vw 100vh; }
   html.glass .seg { border-radius: 999px; box-shadow: inset 0 1px 0 var(--rim2), inset 0 -1px 0 var(--rim2); }
   html.glass .seg button { border-radius: 999px; }
   html.glass .seg button:not(.on):hover { background: var(--hover); color: var(--text); }
@@ -84,7 +84,7 @@ const inv = (c, a) => window.__TAURI_INTERNALS__.invoke(c, a);
 const $ = (id) => document.getElementById(id);
 const act = (a) => inv('bar_action', { action: a }).then(refresh);
 const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-let theme = null, open = null;
+let theme = null, open = null, glassKey = '';
 // Dormir y Pomodoro muestran sus opciones dentro de la barra (no se superponen con la página de música)
 function toggle(which) {
   open = open === which ? null : which;
@@ -110,7 +110,7 @@ document.querySelectorAll('.rz').forEach((z) => z.addEventListener('mousedown', 
 async function refresh() {
   let s; try { s = await inv('bar_state'); } catch (_) { return; }
   if (s.theme !== theme) { theme = s.theme; applyTheme(theme); }
-  applyGlass(s.glass, s.cover);
+  if (JSON.stringify(s.glass) !== glassKey) { glassKey = JSON.stringify(s.glass); applyGlass(s.glass); }
   document.querySelectorAll('#seg button').forEach((b) => b.classList.toggle('on', b.dataset.src === s.source));
   $('float').classList.toggle('on', s.float);
   const st = $('status');

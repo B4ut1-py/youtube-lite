@@ -8,6 +8,11 @@
   }
   if (location.hostname !== 'music.youtube.com' && !SP) return;
 
+  // Sin el aviso "¿Desea salir del sitio?": la app cambia de servicio o recarga la página sola, y el aviso la frenaba.
+  const addEv = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (t, ...r) { if (t === 'beforeunload' && this === window) return; return addEv.call(this, t, ...r); };
+  Object.defineProperty(window, 'onbeforeunload', { get: () => null, set: () => {}, configurable: true });
+
   // Única modificación visual: con la ventana oculta se pausan animaciones para gastar menos CPU.
   const css = `
     html.lm-hidden *, html.lm-hidden *::before, html.lm-hidden *::after { animation: none !important; transition: none !important; }
@@ -32,21 +37,29 @@
   // Estilo Cristal (opcional, solo apariencia). Rust reemplaza estos marcadores al crear la página
   // y luego lo prende o apaga con __lm.glass() al cambiar el ajuste o al terminar de cargar.
   const GLASS_CSS = /*__LM_GLASS_CSS__*/{}[SP ? 'sp' : 'ytm'] || '';
-  let glassEl = null, glassCover = '';
-  const setGlass = (on) => whenRoot(() => {
+  // g: null (apagado) o { tone: 'dark' | 'light', tint: '#rrggbb' } con el fondo fijo elegido en Configuración
+  let glassEl = null;
+  const setGlass = (g) => whenRoot(() => {
     const r = document.documentElement;
-    if (!on || !GLASS_CSS) { glassEl?.remove(); glassEl = null; r.classList.remove('lm-glass'); return; }
+    if (!g || !GLASS_CSS) { glassEl?.remove(); glassEl = null; r.classList.remove('lm-glass', 'lm-light'); return; }
     if (!glassEl) { glassEl = document.createElement('style'); glassEl.textContent = GLASS_CSS; }
     (document.head || r).appendChild(glassEl);
     r.classList.add('lm-glass');
+    r.classList.toggle('lm-light', g.tone === 'light');
+    r.style.setProperty('--lm-tint', g.tint);
   });
-  // fondo del Cristal: la carátula de la canción (la pone el informe de estado, más abajo)
-  const glassBg = (cover) => {
-    if (!glassEl || cover === glassCover) return;
-    glassCover = cover;
-    document.documentElement.style.setProperty('--lm-cover', cover ? `url("${cover.replace(/"/g, '%22')}")` : 'none');
+  setGlass(/*__LM_GLASS_ON__*/null);
+  // YouTube Music con Cristal: la línea de tiempo se dibuja sobre el borde curvo de la cápsula (CSS) con el avance en --lm-p
+  let progObs = null;
+  const glassProgress = () => {
+    const sl = document.querySelector('ytmusic-player-bar #progress-bar');
+    if (!sl || progObs?.el === sl) return;
+    progObs?.disconnect();
+    const put = () => { const max = +sl.getAttribute('aria-valuemax') || 0; document.documentElement.style.setProperty('--lm-p', max ? Math.min(1, (+sl.getAttribute('aria-valuenow') || 0) / max).toFixed(4) : 0); };
+    progObs = new MutationObserver(put); progObs.el = sl;
+    progObs.observe(sl, { attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuemax'] });
+    put();
   };
-  setGlass(/*__LM_GLASS_ON__*/false);
 
   // Funciones llamadas desde Rust (bandeja y reproductor flotante)
   // Volumen elegido desde el flotante. YouTube lo reinicia solo (cambio de canción, normalización de volumen...),
@@ -241,9 +254,8 @@
   const tick = async () => {
     clearTimeout(timer);
     try {
-      if (!SP) youThere();
+      if (!SP) { youThere(); glassProgress(); }
       const n = snapshot();
-      glassBg(n.cover);
       if (changed(n)) { sent = n; sentAt = Date.now(); wanted = await invoke('report_state', n); }
     } catch (_) {}
     timer = setTimeout(tick, wanted ? 2000 : 5000);

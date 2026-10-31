@@ -1,5 +1,5 @@
 /* Estilo Cristal (Liquid Glass) para YouTube Music. Solo apariencia: nada cambia de lugar ni de tamaño.
-   Se arma con los archivos de diseño por sección; lo aplica inject.js cuando el ajuste "glass" está en "art". */
+   Se arma con los archivos de diseño por sección; lo aplica inject.js cuando el Cristal está prendido (html.lm-glass; html.lm-light con fondo claro). */
 
 /* Maqueta: YouTube Music con estilo Cristal (tipo Apple "Liquid Glass").
    Solo apariencia: colores, transparencias, esquinas y brillos. Los botones y textos quedan donde están. */
@@ -11,64 +11,150 @@
   --g-shadow: 0 8px 28px rgba(0, 0, 0, .28), 0 1px 3px rgba(0, 0, 0, .18);
   --g-blur: blur(36px) saturate(1.8);
   --g-accent: #ff3d6e;
+  --g-text: #fff; --g-text-2: rgba(255, 255, 255, .72); --g-sel: rgba(255, 255, 255, .9); --g-sel-text: #0f0f0f;
+  --g-div: rgba(255, 255, 255, .1); --g-scroll: rgba(255, 255, 255, .14); --g-track: rgba(255, 255, 255, .16);
+  /* capa que flota sobre contenido (menús, sugerencias, diálogos, avisos): vidrio casi opaco con el tono del fondo */
+  --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #000) 93%, transparent);
+  --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 70%, #000) 97%, transparent);
+  --g-veil: rgba(10, 10, 16, .6); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 75%, #000) 97%, transparent);
+  --g-layer-shadow: 0 16px 32px -10px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .2);
 }
+/* ---------- 0. Modo claro (html.lm-light): vidrio blanco translúcido y texto oscuro, por las variables del sitio ---------- */
+html.lm-light:root {
+  --g-fill: rgba(255, 255, 255, .42); --g-fill-2: rgba(255, 255, 255, .62); --g-fill-3: rgba(255, 255, 255, .8);
+  --g-panel: rgba(255, 255, 255, .38);
+  --g-rim: rgba(255, 255, 255, .95); --g-rim-2: rgba(20, 24, 40, .07);
+  --g-edge: linear-gradient(140deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .2) 30%, rgba(255, 255, 255, .1) 65%, rgba(255, 255, 255, .7));
+  --g-shadow: 0 8px 26px rgba(40, 50, 80, .14), 0 1px 3px rgba(40, 50, 80, .1);
+  --g-layer-shadow: 0 16px 32px -10px rgba(40, 50, 80, .32), 0 2px 8px rgba(40, 50, 80, .12);
+  --g-accent: #e0245a;
+  --g-text: #14161f; --g-text-2: rgba(20, 22, 31, .72); --g-sel: rgba(20, 22, 31, .88); --g-sel-text: #fff;
+  --g-div: rgba(20, 24, 40, .12); --g-scroll: rgba(20, 24, 40, .22); --g-track: rgba(20, 24, 40, .16);
+  --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 94%, transparent);
+  --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 45%, #fff) 97%, transparent);
+  --g-veil: rgba(255, 255, 255, .55); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 97%, transparent);
+  --ytmusic-text-primary: #14161f; --ytmusic-text-secondary: rgba(20, 22, 31, .72); --ytmusic-text-disabled: rgba(20, 22, 31, .45);
+  --ytmusic-text-primary-inverse: #fff;
+  --ytmusic-icon-inactive: #4a4e5c; --ytmusic-icon-disabled: rgba(20, 22, 31, .35);
+  --ytmusic-wordmark-text: #14161f; --ytmusic-divider: rgba(20, 24, 40, .12); --ytmusic-guide-divider: rgba(20, 24, 40, .12);
+  --ytmusic-color-close-button: #4a4e5c; --ytmusic-color-input-border: rgba(20, 24, 40, .2); --ytmusic-color-badge: #4a4e5c;
+  --ytmusic-inline-badge-color: #4a4e5c; --ytmusic-toggle-button-color: rgba(20, 22, 31, .7);
+  --ytmusic-menu-item-focus-background-color: rgba(20, 24, 40, .08);
+  --ytmusic-search-box-text-secondary: rgba(20, 22, 31, .65); --ytmusic-search-suggestion-text-secondary: rgba(20, 22, 31, .68);
+  --ytmusic-search-suggestion-icon-color: #4a4e5c; --ytmusic-search-suggestion-focus-active: #1b5fd1;
+  --ytmusic-search-suggestion-focus-active-background: rgba(20, 24, 40, .08);
+  --ytmusic-search-bar-background-bauhaus: rgba(255, 255, 255, .5); --ytmusic-search-bar-border-bauhaus: rgba(20, 24, 40, .12);
+  --ytmusic-badge-chip-background: rgba(20, 24, 40, .08); --ytmusic-explore-chip-background: rgba(255, 255, 255, .5);
+  --ytmusic-overlay-text-primary: #14161f; --ytmusic-overlay-text-secondary: rgba(20, 22, 31, .72); --ytmusic-overlay-text-disabled: rgba(20, 22, 31, .45);
+  --ytmusic-overlay-button-secondary: rgba(20, 24, 40, .08);
+  --ytmusic-message-renderer-text-color: rgba(20, 22, 31, .72); --ytmusic-message-renderer-icon-color: #4a4e5c;
+  --ytmusic-player-controls-button-disabled: rgba(20, 22, 31, .35);
+  --ytmusic-play-pause-button-background: #14161f;
+  --ytmusic-toggle-button-chip-border-color: rgba(20, 24, 40, .25); --ytmusic-toggle-button-chip-active-background: #14161f;
+  --ytmusic-navigation-button-outline-color: rgba(20, 24, 40, .15); --ytmusic-immersive-carousel-button-border: rgba(20, 24, 40, .2);
+  --ytmusic-guide-entry-focus-border: #14161f; --ytmusic-guide-signin-promo-text-secondary: #4a4e5c;
+  --ytmusic-dropdown-border-color: rgba(20, 24, 40, .12);
+  --yt-spec-text-primary: #14161f; --yt-spec-text-secondary: rgba(20, 22, 31, .72); --yt-spec-text-disabled: rgba(20, 22, 31, .45);
+  --yt-spec-icon-active-other: #14161f; --yt-spec-icon-inactive: #4a4e5c; --yt-spec-icon-disabled: rgba(20, 22, 31, .35);
+  --yt-spec-call-to-action: #1b5fd1; --yt-spec-10-percent-layer: rgba(20, 24, 40, .1); --yt-spec-outline: rgba(20, 24, 40, .15);
+  --yt-spec-badge-chip-background: rgba(20, 24, 40, .08); --yt-spec-touch-response: rgba(20, 24, 40, .1);
+  --yt-endpoint-color: #14161f; --yt-endpoint-hover-color: #14161f; --yt-compact-link-color: #14161f; --yt-compact-link-icon-color: #14161f;
+  --yt-compact-link-title-color: #14161f; --yt-compact-link-subtitle-color: rgba(20, 22, 31, .72);
+  --iron-icon-fill-color: #14161f; --paper-icon-button-ink-color: #14161f; --paper-item-icon-color: #14161f;
+  --paper-listbox-color: #14161f; --paper-tooltip-text-color: #14161f; --paper-toast-color: #14161f;
+  color-scheme: light; }
 
-/* ---------- 1. Fondo: la carátula de la canción, enorme y desenfocada ---------- */
+/* ---------- 1. Fondo fijo (oscuro, claro o color elegido) ---------- */
 html, body, ytmusic-app, ytmusic-app-layout, #layout, ytmusic-browse-response, #content, ytmusic-section-list-renderer,
 ytmusic-guide-renderer, #guide-wrapper, #guide-content, #mini-guide-background {
   --ytmusic-general-background-a: transparent !important; --ytmusic-general-background-b: transparent !important;
   --ytmusic-general-background-c: transparent !important; --ytmusic-background: transparent !important;
   background: transparent !important; }
-html::before { content: ""; position: fixed; inset: -160px; z-index: -2; background: #101018 var(--lm-cover) center / cover;
-  filter: blur(90px) saturate(1.9) brightness(.62); }
-html::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(70% 55% at 85% 10%, rgba(255, 255, 255, .08), transparent 70%), linear-gradient(rgba(10, 10, 16, .12), rgba(10, 10, 16, .5)); }
-ytmusic-browse-response ytmusic-fullbleed-thumbnail-renderer { visibility: hidden !important; opacity: 0 !important; }   /* imagen de cabecera: cortaba el fondo */
+html::before { content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;   /* fondo fijo: --lm-tint lo pone la app (oscuro, claro o color elegido) */
+  background: radial-gradient(70% 60% at 12% 8%, color-mix(in srgb, var(--lm-tint, #262a3d) 70%, #fff), transparent 70%),
+    radial-gradient(60% 70% at 92% 92%, color-mix(in srgb, var(--lm-tint, #262a3d) 65%, #000), transparent 72%),
+    linear-gradient(160deg, color-mix(in srgb, var(--lm-tint, #262a3d) 88%, #fff), color-mix(in srgb, var(--lm-tint, #262a3d) 80%, #000)); }
+html::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(rgba(10, 10, 16, .08), rgba(10, 10, 16, .32)); }
+html.lm-light::after { background: linear-gradient(rgba(255, 255, 255, .1), rgba(255, 255, 255, .25)); }
+ytmusic-browse-response ytmusic-fullbleed-thumbnail-renderer:not(ytmusic-immersive-header-renderer > ytmusic-fullbleed-thumbnail-renderer) { visibility: hidden !important; opacity: 0 !important; }   /* imagen de fondo de otras cabeceras: cortaba el fondo */
+/* cabecera de artista: la foto se queda, atenuada y fundida hacia el fondo (sin bordes duros) para que el nombre se lea */
+ytmusic-immersive-header-renderer ytmusic-fullbleed-thumbnail-renderer { opacity: .5;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28%, #000 85%, transparent), linear-gradient(#000 25%, transparent 92%); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, #000 28%, #000 85%, transparent), linear-gradient(#000 25%, transparent 92%); mask-composite: intersect; }
+html.lm-light ytmusic-immersive-header-renderer ytmusic-fullbleed-thumbnail-renderer { opacity: .35; }
 ytmusic-browse-response .background-gradient { background: none !important; }
 
 /* receta del vidrio: relleno translúcido + desenfoque + canto iluminado (borde con degradé) + sombra */
-#guide-wrapper::before, #player-bar-background {
+#guide-wrapper::before, #mini-guide-renderer::before, #player-bar-background {
   background: var(--g-panel) !important;
   box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow) !important; }
-#guide-wrapper::after, #player-bar-background::after {
+#guide-wrapper::after, #mini-guide-renderer::after, #player-bar-background::after {
   content: ""; position: absolute; pointer-events: none; padding: 1px; background: var(--g-edge);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 
 /* ---------- 2. Paneles flotantes ---------- */
 /* barra superior: sin franja; solo un velo desenfocado que se desvanece hacia abajo */
-#nav-bar-background { background: linear-gradient(rgba(12, 12, 18, .55), transparent) !important;
-  -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); box-shadow: none !important; }
+#nav-bar-background { background: linear-gradient(var(--g-topveil) 80%, transparent) !important;
+  -webkit-mask-image: linear-gradient(#000 85%, transparent); mask-image: linear-gradient(#000 85%, transparent); box-shadow: none !important; }
 #nav-bar-divider { display: none !important; }
 /* menú lateral: panel de vidrio flotante con esquinas grandes */
 #guide-wrapper { border: 0 !important; box-shadow: none !important; }
-#guide-wrapper::before, #guide-wrapper::after { top: 0; left: 0; width: calc(100% - 1px); height: calc(100vh - 72px - 12px); border-radius: 24px; }
+/* panel flotante: 8px de aire a la izquierda, arriba y abajo (si hay reproductor, 8px sobre la cápsula); radio 22 como la cápsula */
+#guide-wrapper::before, #guide-wrapper::after { top: 8px; left: 8px; width: 100%; height: calc(100vh - 16px); border-radius: 22px; }
+ytmusic-app-layout[player-visible] #guide-wrapper::before, ytmusic-app-layout[player-visible] #guide-wrapper::after { height: calc(100vh - 24px - var(--ytmusic-player-bar-height)); }
+/* menú mini: mismo panel, 72px de ancho */
+#mini-guide-renderer::before, #mini-guide-renderer::after { top: 8px; left: 8px; width: 72px; height: calc(100vh - 16px); border-radius: 22px; position: fixed; }
+#mini-guide-renderer::before { content: ""; z-index: -1; }
+ytmusic-app-layout[player-visible] #mini-guide-renderer::before, ytmusic-app-layout[player-visible] #mini-guide-renderer::after { height: calc(100vh - 24px - var(--ytmusic-player-bar-height)); }
+ytmusic-guide-renderer { margin-left: 8px; }   /* las entradas siguen centradas dentro del panel desplazado */
 #guide-wrapper::before { content: ""; position: absolute; z-index: -1; }
-#guide-wrapper #divider, ytmusic-guide-section-renderer #divider { border-color: rgba(255, 255, 255, .1) !important; }
+#guide-wrapper #divider, ytmusic-guide-section-renderer #divider { border-color: var(--g-div) !important; }
 /* reproductor: cápsula de vidrio flotante */
 ytmusic-player-bar { background: transparent !important; }
 /* sin desenfoque en vivo: medido, al desplazar costaba +1,2% de CPU; un vidrio casi opaco se ve igual de limpio */
-#player-bar-background { background: rgba(16, 16, 22, .9) !important; border-radius: 0; }   /* tamaño y posición originales: la línea y el knob de progreso viven en su borde de arriba, así que sin esquinas */
+/* cápsula flotante: 8px de aire a izquierda, derecha y abajo, radio 22; la línea de tiempo vive adentro (ver sección 5) */
+#player-bar-background, ytmusic-app-layout > [slot="player-bar"] { left: 8px !important; right: 8px !important; bottom: 8px !important; width: auto !important; }
+#player-bar-background { background: var(--g-bar) !important; border-radius: 22px !important; }
 #player-bar-background::after { inset: 0; border-radius: inherit; }
+/* el contenido no queda debajo de la cápsula: se suman los 8px de aire */
+ytmusic-app-layout:not([is-contained-content-layout-enabled])[player-visible] > #content { margin-bottom: calc(var(--ytmusic-player-bar-height) + 8px); }
+ytmusic-app-layout[is-contained-content-layout-enabled][player-visible] > #content { height: calc(100dvh - var(--ytmusic-player-bar-height) - 8px); }
+ytmusic-app-layout:not([is-mweb-modernization-enabled]) > [slot="player-page"] { height: calc(100vh - var(--ytmusic-nav-bar-height) - var(--ytmusic-player-bar-height) - 8px); }
 /* velo desenfocado al pie: lo que pasa por debajo de la cápsula se funde en vez de asomarse */
 ytmusic-app-layout::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 3; pointer-events: none;
-  background: linear-gradient(transparent, rgba(10, 10, 16, .6));
+  background: linear-gradient(transparent, var(--g-veil));
   -webkit-mask-image: linear-gradient(transparent, #000 45%); mask-image: linear-gradient(transparent, #000 45%); }
 
 /* ---------- 3. Controles en forma de cápsula de vidrio (solo los que ya tienen fondo o borde) ---------- */
 ytmusic-guide-entry-renderer tp-yt-paper-item { border-radius: 999px !important; }
 ytmusic-guide-entry-renderer[active] tp-yt-paper-item { background: var(--g-fill-2) !important;
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 14px rgba(0, 0, 0, .18); }
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }   /* sin sombra exterior: el contenedor del menú recorta ~12px */
 ytmusic-guide-entry-renderer:not([active]) tp-yt-paper-item:hover { background: var(--g-fill) !important; }
 ytmusic-chip-cloud-chip-renderer .gradient-box { background: transparent !important; }
 ytmusic-chip-cloud-chip-renderer a.yt-simple-endpoint { background: var(--g-fill) !important; border-radius: 999px !important;
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 2px 8px rgba(0, 0, 0, .12) }
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2) }   /* el carrusel de chips recorta lo que sobresale */
 ytmusic-chip-cloud-chip-renderer a.yt-simple-endpoint:hover { background: var(--g-fill-2) !important; }
-ytmusic-chip-cloud-chip-renderer[is-selected] a.yt-simple-endpoint { background: rgba(255, 255, 255, .9) !important; }
-ytmusic-search-box .search-box { background: var(--g-fill) !important; border: 0 !important; border-radius: 999px !important;
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 16px rgba(0, 0, 0, .18) }
+ytmusic-chip-cloud-chip-renderer a.yt-simple-endpoint, ytmusic-chip-cloud-chip-renderer a.yt-simple-endpoint yt-formatted-string { color: var(--g-text) !important; }
+ytmusic-chip-cloud-chip-renderer[is-selected] a.yt-simple-endpoint { background: var(--g-sel) !important; }
+ytmusic-chip-cloud-chip-renderer[is-selected] a.yt-simple-endpoint, ytmusic-chip-cloud-chip-renderer[is-selected] a.yt-simple-endpoint yt-formatted-string { color: var(--g-sel-text) !important; }
+
+/* buscador: la sombra va en el host (antes estaba dentro de un contenedor con overflow:hidden y quedaba cuadrada); abierto, pastilla y sugerencias son un solo vidrio */
+ytmusic-search-box { border-radius: 999px; box-shadow: var(--g-shadow); }
+ytmusic-search-box .search-container { border-radius: inherit !important; }
+ytmusic-search-box .search-box { background: var(--g-layer) !important; border: 0 !important; border-radius: inherit !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2) }
+/* sugerencias: capa de vidrio casi opaca (≥ .9), separada 4px de la pastilla; antes se mezclaba con la página de abajo */
+ytmusic-search-box[opened] .search-container { overflow: visible !important; }
+ytmusic-search-box #suggestion-list { margin-top: 4px; background: var(--g-layer) !important; border-radius: 20px !important;
+  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow); }
+ytmusic-search-suggestion, ytmusic-search-suggestion .left-content { color: var(--g-text-2) !important; }
+ytmusic-search-suggestion yt-formatted-string.title, ytmusic-search-suggestion .title { color: var(--g-text) !important; }
+ytmusic-search-suggestion:hover, ytmusic-search-suggestion[focused], ytmusic-search-suggestion.iron-selected, ytmusic-search-suggestion[selected] { background: var(--g-fill-2) !important; }
 .ytSpecButtonShapeNextTonal, .ytSpecButtonShapeNextOutline { background: var(--g-fill-2) !important; border: 0 !important;
   box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 14px rgba(0, 0, 0, .18) !important; }
 .ytSpecButtonShapeNextTonal:hover, .ytSpecButtonShapeNextOutline:hover { background: var(--g-fill-3) !important; }
+.ytSpecButtonShapeNextTonal, .ytSpecButtonShapeNextOutline, :is(.ytSpecButtonShapeNextTonal, .ytSpecButtonShapeNextOutline) :is(.ytSpecButtonShapeNextButtonTextContent, .yt-spec-button-shape-next__button-text-content, yt-icon) { color: var(--g-text) !important; }
 #previous-items-button, #next-items-button { border: 0 !important; background: var(--g-fill) !important;
   box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 2px 8px rgba(0, 0, 0, .14); }
 #previous-items-button[disabled], #next-items-button[disabled] { opacity: .4; }
@@ -76,19 +162,39 @@ ytmusic-search-box .search-box { background: var(--g-fill) !important; border: 0
 /* ---------- 4. Carátulas: esquinas suaves, canto de luz y sombra ---------- */
 ytmusic-two-row-item-renderer .image-wrapper, ytmusic-two-row-item-renderer #thumbnail, ytmusic-two-row-item-renderer yt-img-shadow { border-radius: 12px !important; overflow: clip !important; }
 ytmusic-two-row-item-renderer yt-img-shadow#image > img#img { border-radius: 12px !important; }
-ytmusic-two-row-item-renderer .image-wrapper { background: transparent !important; box-shadow: 0 12px 28px rgba(0, 0, 0, .34), inset 0 0 0 1px rgba(255, 255, 255, .14) !important; }
+ytmusic-two-row-item-renderer .image-wrapper { background: transparent !important; box-shadow: 0 6px 6px -6px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(255, 255, 255, .14) !important;   /* el carrusel recorta arriba: sombra corta y hacia abajo */ }
 ytmusic-player-bar .thumbnail-image-wrapper, ytmusic-player-bar .image { border-radius: 8px !important; }
 
 /* ---------- 5. Progreso y volumen ---------- */
 #progress-bar #primaryProgress, #volume-slider #primaryProgress { background: linear-gradient(90deg, #ff8aac, var(--g-accent)) !important; }
-#progress-bar #primaryProgress { box-shadow: 0 0 10px rgba(255, 61, 110, .6); }
-#progress-bar #progressContainer { background: rgba(255, 255, 255, .16) !important; }
-#progress-bar .slider-knob-inner, #volume-slider .slider-knob-inner { background: #fff !important; border-color: #fff !important;
+/* línea de tiempo sobre el borde de la cápsula: sigue el canto de arriba y sus dos curvas.
+   Se dibuja en #player-bar-background::before con el avance que pone inject.js (--lm-p, de 0 a 1);
+   el control real de YouTube queda encima, invisible, para hacer clic y arrastrar. */
+#player-bar-background::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+  border: 3px solid transparent; box-sizing: border-box; transition: border-width .15s;
+  background: linear-gradient(90deg, #ff8aac, var(--g-accent) calc(var(--lm-p, 0) * 100%), var(--g-track) calc(var(--lm-p, 0) * 100%)) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  clip-path: inset(0 0 calc(100% - 22px) 0); }   /* solo el canto de arriba: termina donde la curva se vuelve vertical */
+ytmusic-app-layout:has(#progress-bar:hover, #progress-bar[dragging]) #player-bar-background::before { border-width: 5px; }
+/* franja de clic de 14px centrada en el borde, por encima de los controles y sin tapar los botones de abajo */
+ytmusic-player-bar #progress-bar { left: 0 !important; right: 0 !important; width: auto !important; top: 2px !important; height: 14px !important; overflow: hidden !important; z-index: 5 !important; }
+ytmusic-player-bar #progress-bar #sliderContainer { margin: -9px 0 0 !important; width: 100% !important; }
+ytmusic-player-bar #progress-bar .bar-container { left: 0 !important; right: 0 !important; }
+ytmusic-player-bar #progress-bar :is(#progressContainer, #primaryProgress, #secondaryProgress, .slider-knob) { opacity: 0 !important; }
+#volume-slider #primaryProgress { border-radius: 999px; }
+#volume-slider .slider-knob-inner { background: #fff !important; border-color: #fff !important;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, .2), 0 1px 6px rgba(0, 0, 0, .3); }
 
 /* ---------- 6. Barras de desplazamiento finas y translúcidas ---------- */
 /* la app ya fija scrollbar-color (eso anula ::-webkit-scrollbar): se tiñe solo el color, el grosor no cambia */
-html, * { scrollbar-color: rgba(255, 255, 255, .14) transparent; }
+html, * { scrollbar-color: var(--g-scroll) transparent; }
+/* barras nativas (la de la página y la de las listas de pestañas/podcast): sin flechas, pulgar fino de vidrio, mismo grosor (15px) para que nada se mueva */
+html, ytmusic-tab-renderer { scrollbar-color: auto !important; }
+:is(html, ytmusic-tab-renderer)::-webkit-scrollbar { width: 15px; height: 15px; background: transparent; }
+:is(html, ytmusic-tab-renderer)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+:is(html, ytmusic-tab-renderer)::-webkit-scrollbar-track, :is(html, ytmusic-tab-renderer)::-webkit-scrollbar-corner { background: transparent; }
+:is(html, ytmusic-tab-renderer)::-webkit-scrollbar-thumb { background: var(--g-scroll); background-clip: padding-box; border: 5px solid transparent; border-radius: 999px; min-height: 40px; }
+:is(html, ytmusic-tab-renderer)::-webkit-scrollbar-thumb:hover { background: var(--g-text-2); background-clip: padding-box; }
 
 /* 20-paginas: Principal, Explorar, Biblioteca, Estados de ánimo, Listas de éxitos, búsqueda. Solo apariencia. */
 
@@ -110,15 +216,15 @@ ytmusic-card-shelf-renderer .card-container .immersive-background { border-radiu
 
 
 /* pestañas (Biblioteca/Descargas, YT Music/Biblioteca) y botón de orden */
-ytmusic-tabs { --ytmusic-tabs-divider-color: rgba(255, 255, 255, .1); }
-ytmusic-tabs #divider, ytmusic-tabs .tab-container { border-color: rgba(255, 255, 255, .1) !important; }
+ytmusic-tabs { --ytmusic-tabs-divider-color: var(--g-div); }
+ytmusic-tabs #divider, ytmusic-tabs .tab-container { border-color: var(--g-div) !important; }
 ytmusic-sort-filter-button-renderer { --ytmusic-sort-filter-button-background: var(--g-fill); }
 ytmusic-sort-filter-button-renderer tp-yt-paper-dropdown-menu, ytmusic-sort-filter-button-renderer tp-yt-paper-button {
   background: var(--g-fill) !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }
 
 /* carátulas de las cuadrículas: las vacías (sin imagen) también quedan con vidrio */
 ytmusic-grid-renderer ytmusic-two-row-item-renderer .image-wrapper, ytmusic-carousel ytmusic-two-row-item-renderer .image-wrapper { background-color: var(--g-fill); overflow: clip; }
-ytmusic-two-row-item-renderer:hover .image-wrapper { box-shadow: 0 14px 30px rgba(0, 0, 0, .4), inset 0 0 0 1px rgba(255, 255, 255, .28) !important; }
+ytmusic-two-row-item-renderer:hover .image-wrapper { box-shadow: 0 8px 8px -8px rgba(0, 0, 0, .65), inset 0 0 0 1px rgba(255, 255, 255, .28) !important; }
 ytmusic-card-shelf-renderer ytmusic-fullbleed-thumbnail-renderer { display: none !important; }   /* fondo desenfocado nativo: el vidrio ya cubre */
 
 /* 30-detalle: álbum, playlist, artista, podcast. Solo apariencia. */
@@ -185,41 +291,54 @@ ytmusic-player-page ytmusic-description-shelf-renderer,
 ytmusic-player-page ytmusic-carousel-shelf-renderer ytmusic-two-row-item-renderer { border-radius: 12px; }
 ytmusic-player-page ytmusic-two-row-item-renderer img, ytmusic-player-page ytmusic-two-row-item-renderer yt-img-shadow { border-radius: 12px; overflow: clip; }
 
-/* ---- Menus emergentes (capa pasajera: backdrop-filter permitido) ---- */
-ytmusic-menu-popup-renderer, ytmusic-multi-page-menu-renderer { border-radius: 22px; overflow: clip; }
-ytmusic-menu-popup-renderer tp-yt-paper-listbox#items {
-  background: var(--g-panel); border-radius: 22px; overflow: clip;
+/* ---- Capas pasajeras: menús (cuenta, de tres puntos), desplegables, diálogos, avisos y tooltips ----
+   Todas comparten el mismo vidrio: relleno --g-layer (casi opaco, con el tono del fondo), desenfoque, canto de luz, radio 20px y sombra del mismo radio. */
+ytmusic-multi-page-menu-renderer, ytmusic-menu-popup-renderer, ytmusic-popup-container tp-yt-paper-dialog, tp-yt-paper-dialog.ytmusic-popup-container,
+tp-yt-iron-dropdown tp-yt-paper-listbox, ytmusic-dropdown-renderer tp-yt-paper-listbox {
+  background: var(--g-layer) !important; border-radius: 20px !important; overflow: clip;
   -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
-}
-tp-yt-iron-dropdown #contentWrapper, tp-yt-iron-dropdown tp-yt-paper-listbox { border-radius: 22px; }
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow) !important; }
+/* el menú de tres puntos es el que se desplaza (overflow:auto): el vidrio va en él, no en la lista de adentro, que quedaba recortada con esquinas cuadradas */
+ytmusic-menu-popup-renderer { overflow-x: hidden; padding: 8px; box-sizing: border-box; }   /* 8px de aire dentro del vidrio: las filas no tocan el borde curvo */
+ytmusic-menu-popup-renderer :is(ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer, ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-service-item-download-renderer) { border-radius: 12px; outline: none !important; }
+ytmusic-menu-popup-renderer tp-yt-paper-listbox#items { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0 !important; }
+ytmusic-multi-page-menu-renderer, ytmusic-menu-popup-renderer, ytmusic-popup-container tp-yt-paper-dialog { color: var(--g-text); }
+tp-yt-iron-dropdown #contentWrapper { border-radius: 20px; }
+html.lm-light :is(ytmusic-multi-page-menu-renderer, ytmusic-menu-popup-renderer) yt-icon { color: var(--g-text) !important; }   /* los iconos del sitio traen blanco fijo */
+ytmusic-multi-page-menu-renderer yt-formatted-string#manage-account { color: #3ea6ff !important; }
+html.lm-light ytmusic-multi-page-menu-renderer yt-formatted-string#manage-account { color: #1b5fd1 !important; }
+ytmusic-multi-page-menu-renderer yt-formatted-string#manage-account a { color: inherit !important; }
+html.lm-light ytmusic-nav-bar yt-icon { color: var(--g-text) !important; }   /* botón de transmitir: traía blanco fijo */
+ytmusic-multi-page-menu-renderer :is(yt-formatted-string#account-name, yt-formatted-string#channel-handle, yt-formatted-string#email) { color: var(--g-text) !important; }
+ytmusic-multi-page-menu-renderer :is(yt-multi-page-menu-section-renderer #items, #sections) { background: transparent; }
+ytmusic-multi-page-menu-renderer yt-multi-page-menu-section-renderer + yt-multi-page-menu-section-renderer { border-top: 1px solid var(--g-div); }
+ytmusic-multi-page-menu-renderer ytd-active-account-header-renderer { border-bottom: 1px solid var(--g-div); }
+ytmusic-multi-page-menu-renderer :is(ytd-compact-link-renderer, tp-yt-paper-item):hover, ytmusic-multi-page-menu-renderer :is(ytd-compact-link-renderer, tp-yt-paper-item)[focused],
 ytmusic-menu-popup-renderer :is(ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer, ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-service-item-download-renderer):hover,
-ytmusic-menu-popup-renderer :is(ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer, ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-service-item-download-renderer)[focused] { background: var(--g-fill-2); border-radius: 12px; }
-
-/* ---- Dialogos y popups ---- */
-ytmusic-popup-container tp-yt-paper-dialog, tp-yt-paper-dialog.ytmusic-popup-container {
-  background: var(--g-panel); border-radius: 22px; overflow: clip;
-  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
-}
-ytmusic-popup-container tp-yt-paper-dialog :is(ytmusic-add-to-playlist-renderer, ytmusic-confirm-dialog-renderer, ytmusic-unified-share-panel-renderer, ytmusic-dialog-renderer, yt-confirm-dialog-renderer) { background: transparent; }
+ytmusic-menu-popup-renderer :is(ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer, ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-service-item-download-renderer)[focused] { background: var(--g-fill-2) !important; }
+ytmusic-popup-container tp-yt-paper-dialog :is(ytmusic-add-to-playlist-renderer, ytmusic-confirm-dialog-renderer, ytmusic-unified-share-panel-renderer, ytmusic-dialog-renderer, yt-confirm-dialog-renderer) { background: transparent !important; }
 ytmusic-popup-container tp-yt-paper-dialog :is(.ytSpecButtonShapeNextHost) { border-radius: 999px; }
 tp-yt-iron-overlay-backdrop { background: rgba(0, 0, 0, .45); }
+html.lm-light tp-yt-iron-overlay-backdrop { background: rgba(40, 50, 80, .28); }
 
 /* ---- Avisos (toasts) ---- */
 tp-yt-paper-toast, ytmusic-notification-action-renderer, yt-notification-action-renderer tp-yt-paper-toast {
-  background: var(--g-panel); color: #fff; border-radius: 999px; overflow: clip;
+  background: var(--g-layer) !important; color: var(--g-text) !important; border-radius: 18px !important; overflow: clip;
   -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
-}
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow) !important; }
 
 /* ---- Tooltips ---- */
 tp-yt-paper-tooltip #tooltip {
-  background: var(--g-panel); color: #fff; border-radius: 12px;
+  background: var(--g-layer) !important; color: var(--g-text) !important; border-radius: 12px;
   -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
-}
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow); }
+
+html.lm-light ytmusic-logo img.logo { filter: invert(1) hue-rotate(190deg) saturate(3) brightness(.85); }   /* texto blanco del logo a oscuro, ícono rojo (medido 217,10,21) */
+/* pestañas del reproductor expandido (A continuación / Letra / Relacionado): traen blanco fijo */
+html.lm-light tp-yt-paper-tab.ytmusic-player-page { color: var(--g-text-2); --paper-tab-ink: #14161f; }
+html.lm-light tp-yt-paper-tab.iron-selected.ytmusic-player-page, html.lm-light ytmusic-player-page tp-yt-paper-tabs .tp-yt-paper-tabs[style-target="content"] { color: var(--g-text); }
+html.lm-light tp-yt-paper-tab.ytmusic-player-page[disabled] { color: rgba(20, 22, 31, .35); }
 
 /* Mensajes vacios del panel (Letra, etc.): mas claros para contraste */
-ytmusic-player-page ytmusic-message-renderer yt-formatted-string { color: rgba(255, 255, 255, .8) !important; }
+ytmusic-player-page ytmusic-message-renderer yt-formatted-string { color: var(--g-text-2) !important; }
 ytmusic-player-page ytmusic-player-queue-item .thumbnail-overlay, ytmusic-player-page ytmusic-player-queue-item ytmusic-item-thumbnail-overlay-renderer { border-radius: 8px; overflow: clip; }

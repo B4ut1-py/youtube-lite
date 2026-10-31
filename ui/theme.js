@@ -1,17 +1,19 @@
 // Tema: 'dark' | 'light' | 'auto' (sigue el modo de Windows). Pone o quita html.light.
-window.applyTheme = (t) => {
-  const mq = matchMedia('(prefers-color-scheme: dark)');
-  const set = () => document.documentElement.classList.toggle('light', t === 'light' || (t !== 'dark' && !mq.matches));
-  set();
-  mq.onchange = set;
-};
-// Cristal: pone html.glass y el fondo con la carátula desenfocada (#lm-art). Apagado, no deja nada en la página.
-window.applyGlass = (on, cover) => {
-  document.documentElement.classList.toggle('glass', !!on);
+// Con el Cristal prendido manda el tono de su fondo (claro u oscuro) en lugar del tema.
+(() => {
+let theme = 'auto', glassTone = null;
+const mq = matchMedia('(prefers-color-scheme: dark)');
+const setLight = () => document.documentElement.classList.toggle('light', glassTone ? glassTone === 'light' : theme === 'light' || (theme !== 'dark' && !mq.matches));
+mq.onchange = setLight;
+window.applyTheme = (t) => { theme = t; setLight(); };
+// Cristal: g = null (apagado) o { tone, tint } (ver glass_spec en main.rs). Pone html.glass y el fondo fijo (#lm-art).
+window.applyGlass = (g) => {
+  const r = document.documentElement;
+  glassTone = g ? g.tone : null; setLight();
+  r.classList.toggle('glass', !!g);
   let a = document.getElementById('lm-art');
-  if (!on) return a && a.remove();
-  if (!a) { a = document.createElement('div'); a.id = 'lm-art'; a.innerHTML = '<img alt="">'; document.body.prepend(a); }
-  const i = a.firstChild;
-  if (cover && i.dataset.u !== cover) { i.dataset.u = cover; i.src = cover; }
-  else if (!cover && i.dataset.u) { delete i.dataset.u; i.removeAttribute('src'); }
+  if (!g) return a && a.remove();
+  r.style.setProperty('--lm-tint', g.tint);
+  if (!a) { a = document.createElement('div'); a.id = 'lm-art'; document.body.prepend(a); }
 };
+})();

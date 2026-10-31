@@ -74,6 +74,8 @@
   html.glass .sw span { box-shadow: inset 0 1px 1px rgba(0, 0, 0, .12); }
   html.glass #toast { background: rgba(30, 30, 40, .72); color: #fff; border-color: transparent; box-shadow: inset 0 1px 0 var(--rim), 0 6px 18px rgba(0, 0, 0, .3); }
   html.glass.light #toast { background: rgba(255, 255, 255, .85); color: #14141a; }
+  .clr { width: 34px; height: 30px; padding: 2px; border: 1px solid var(--line); border-radius: 999px; background: none; cursor: pointer; }
+  .clr::-webkit-color-swatch-wrapper { padding: 0; } .clr::-webkit-color-swatch { border: 0; border-radius: 999px; }
   @media (max-width: 720px) { .skins { grid-template-columns: repeat(3, 1fr); } .rng { width: 180px; } }
 </style>
 </head>
@@ -99,7 +101,9 @@ const TABS = [
     [{ type: 'skins', key: 'skin' }],
     [
       { type: 'choice', key: 'theme', label: 'Tema', desc: 'Oscuro, claro o igual que Windows. Se aplica al flotante y a esta ventana.', options: [['auto', 'Automático'], ['dark', 'Oscuro'], ['light', 'Claro']] },
-      { type: 'choice', key: 'glass', label: 'Estilo', desc: 'Cristal: vidrio translúcido sobre la carátula de la canción, en toda la app, YouTube Music y Spotify.', options: [['off', 'Normal'], ['art', 'Cristal']] },
+      { type: 'choice', key: 'glass', label: 'Estilo', desc: 'Cristal: el flotante es de vidrio sobre la carátula. Transparente: el flotante deja ver la pantalla. Con cualquiera de los dos, YouTube Music, Spotify y Lite Music se ven de vidrio.', options: [['off', 'Normal'], ['art', 'Cristal'], ['screen', 'Transparente']] },
+      { type: 'choice', key: 'glass_bg', label: 'Fondo del cristal', desc: 'Fondo fijo de la app con Cristal o Transparente. Con Color, elige el tono en el cuadrito.', options: [['dark', 'Oscuro'], ['light', 'Claro'], ['custom', 'Color']], color: 'glass_color' },
+      { type: 'choice', key: 'format', label: 'Formato', desc: 'Compacto: una sola fila. Ultra compacto: una cápsula con la carátula y play; anterior y siguiente aparecen al pasar el mouse.', options: [['normal', 'Normal'], ['compact', 'Compacto'], ['mini', 'Ultra compacto']] },
       { type: 'range', key: 'scale', label: 'Tamaño', desc: 'También con Ctrl + rueda del mouse sobre el flotante (la rueda sola cambia el volumen).', min: 0.7, max: 1.6, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'range', key: 'float_opacity', label: 'Opacidad', desc: 'Más bajo = más transparente.', min: 0.3, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'toggle', key: 'float_on_top', label: 'Siempre encima', desc: 'Se mantiene por delante de otras ventanas.' },
@@ -157,13 +161,12 @@ const TABS = [
 const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstChild; };
 let toastT;
 const toast = (m = 'Guardado') => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1200); };
-// Cristal: la carátula la da get_state; se vuelve a pedir al elegirlo y al volver a esta ventana
-async function paintGlass() {
-  let c = ''; if (S.glass === 'art') try { c = (await inv('get_state')).cover || ''; } catch (_) {}
-  applyGlass(S.glass === 'art', c);
+async function set(key, value) {
+  S[key] = value; if (key === 'theme') applyTheme(value);
+  await inv('set_setting', { key, value });
+  if (key.startsWith('glass')) try { applyGlass((await inv('get_settings')).glass_spec); } catch (_) {}
+  toast();
 }
-addEventListener('focus', () => { if (S.glass === 'art') paintGlass(); });
-async function set(key, value) { S[key] = value; if (key === 'theme') applyTheme(value); if (key === 'glass') paintGlass(); await inv('set_setting', { key, value }); toast(); }
 async function act(a) {
   if (a.startsWith('link:')) return inv('open_link', { which: a.slice(5) });
   if (a === 'reset_settings' && !confirm('¿Restablecer todos los ajustes?')) return;
@@ -197,6 +200,11 @@ function row(it) {
       b.onclick = () => { set(it.key, v); c.querySelectorAll('.btn').forEach(x => x.classList.remove('pri')); b.classList.add('pri'); };
       c.append(b);
     });
+    if (it.color) {   // cuadrito de color: elegirlo pasa a la opción "custom"
+      const i = $('<input type="color" class="clr">'); i.value = S[it.color];
+      i.onchange = async () => { await set(it.color, i.value); set(it.key, 'custom'); c.querySelectorAll('.btn').forEach((x, k) => x.classList.toggle('pri', it.options[k][0] === 'custom')); };
+      c.append(i);
+    }
     r.append(c);
   } else if (it.type === 'range') {
     const c = $(`<div class="rng"><input type="range" min="${it.min}" max="${it.max}" step="${it.step}"><output></output></div>`), i = c.querySelector('input'), o = c.querySelector('output');
@@ -236,7 +244,7 @@ function buildTabs() {
 async function load(keep) {
   const v = await inv('get_settings');
   S = { ...v.settings, autostart: v.autostart }; META = { version: v.version };
-  applyTheme(S.theme); paintGlass();
+  applyTheme(S.theme); applyGlass(v.glass_spec);
   if (!keep) buildTabs();
   render();
 }
