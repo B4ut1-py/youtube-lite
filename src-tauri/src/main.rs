@@ -59,6 +59,9 @@ struct Settings {
     source: String,
     welcomed: bool,
     notify_song: bool,
+    theme: String,  // "auto" (sigue a Windows), "dark" o "light"
+    #[serde(default)] // ausente en archivos viejos = false (el default de la estructura es true para instalaciones nuevas)
+    float_v2: bool, // ya se adaptó la escala al flotante nuevo (tarjeta)
 }
 
 impl Default for Settings {
@@ -67,7 +70,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), float_v2: true,
         }
     }
 }
@@ -117,8 +120,8 @@ struct AppState {
     sleep_at: Mutex<Option<Instant>>, // temporizador para dormir: cuándo pausar
 }
 
-const FLOAT_W: f64 = 340.0;
-const FLOAT_H: f64 = 385.0;
+const FLOAT_W: f64 = 312.0; // tarjeta de 288x116 más margen para la sombra y la etiqueta de arriba
+const FLOAT_H: f64 = 144.0;
 
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
@@ -144,12 +147,17 @@ fn save_settings(app: &AppHandle) {
 // Lee settings.json; si no existe (versiones anteriores) toma lo guardado en los archivos sueltos.
 fn load_settings(app: &AppHandle) -> Settings {
     // Sin la marca BOM que agregan algunos editores: con ella el archivo no se lee y se pierden todos los ajustes.
-    if let Some(s) = settings_path(app).and_then(|p| fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<Settings>(t.trim_start_matches('\u{feff}')).ok()) {
+    if let Some(mut s) = settings_path(app).and_then(|p| fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<Settings>(t.trim_start_matches('\u{feff}')).ok()) {
+        if !s.float_v2 {
+            // La escala guardada era para el flotante anterior, mucho más grande: con la tarjeta nueva se empieza en 100 %.
+            s.scale = 1.0;
+            s.float_v2 = true;
+        }
         return s;
     }
     let mut s = Settings::default();
     if let Some(v) = cfg_read(app, "skin.txt").filter(|v| SKINS.contains(&v.as_str())) { s.skin = v; }
-    if let Some(v) = cfg_read(app, "size.txt").and_then(|v| v.parse::<f64>().ok()) { s.scale = v.clamp(0.4, 1.2); }
+    
     if cfg_read(app, "autohide.txt").as_deref() == Some("off") { s.autohide = false; }
     s
 }
@@ -265,7 +273,7 @@ fn set_skin(app: &AppHandle, skin: &str) {
 
 // Cambia el tamaño del flotante: la ventana y su contenido (zoom) escalan juntos.
 fn set_float_scale(app: &AppHandle, scale: f64) {
-    let scale = scale.clamp(0.4, 1.2);
+    let scale = scale.clamp(0.7, 1.6);
     app.state::<AppState>().settings.lock().unwrap().scale = scale;
     if let Some(w) = app.get_webview_window("float") {
         let _ = w.set_size(LogicalSize::new(FLOAT_W * scale, FLOAT_H * scale));
@@ -397,13 +405,17 @@ fn restore_float_pos(app: &AppHandle, w: &WebviewWindow) {
     let Some(txt) = cfg_read(app, "pos.txt") else { return };
     let mut it = txt.split(',').filter_map(|v| v.trim().parse::<i32>().ok());
     let (Some(x), Some(y)) = (it.next(), it.next()) else { return };
-    let inside = app.available_monitors().unwrap_or_default().iter().any(|m| {
+    let monitors = app.available_monitors().unwrap_or_default();
+    let Some(m) = monitors.iter().find(|m| {
         let (p, z) = (m.position(), m.size());
         x + 40 >= p.x && x + 40 < p.x + z.width as i32 && y + 40 >= p.y && y + 40 < p.y + z.height as i32
-    });
-    if inside {
-        let _ = w.set_position(PhysicalPosition::new(x, y));
-    }
+    }) else { return };
+    // Entero dentro del monitor: la posición guardada puede venir de un flotante de otro tamaño.
+    let (p, z) = (m.position(), m.size());
+    let ws = w.outer_size().unwrap_or_default();
+    let x = x.clamp(p.x, (p.x + z.width as i32 - ws.width as i32).max(p.x));
+    let y = y.clamp(p.y, (p.y + z.height as i32 - ws.height as i32).max(p.y));
+    let _ = w.set_position(PhysicalPosition::new(x, y));
 }
 
 // ¿Hay un juego o una aplicación a pantalla completa en primer plano? (solo Windows)
@@ -845,6 +857,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "pomo_rest_min" => if let Some(v) = n { c.pomo_rest_min = (v as u64).clamp(1, 60) },
             "close_to_tray" => if let Some(v) = b { c.close_to_tray = v },
             "notify_song" => if let Some(v) = b { c.notify_song = v },
+            "theme" => if let Some(v) = value.as_str().filter(|v| ["auto", "dark", "light"].contains(v)) { c.theme = v.into() },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
             "idle_webview" => if let Some(v) = b { c.idle_webview = v },
             "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
@@ -1063,9 +1076,9 @@ fn on_menu(app: &AppHandle, id: &str) {
         "src_ytm" => set_source(app, "ytm"),
         "src_spotify" => set_source(app, "spotify"),
         "float" => toggle_float(app),
-        "sz50" => set_float_scale(app, 0.5),
-        "sz70" => set_float_scale(app, 0.7),
+        "sz80" => set_float_scale(app, 0.8),
         "sz100" => set_float_scale(app, 1.0),
+        "sz125" => set_float_scale(app, 1.25),
         "dog" => set_skin(app, "dog"),
         "cat" => set_skin(app, "cat"),
         "cover" => set_skin(app, "cover"),
@@ -1228,10 +1241,10 @@ fn main() {
             let m_estu = MenuItem::with_id(app, "estudiando", "Mood: estudiando", true, None::<&str>)?;
             let m_fest = MenuItem::with_id(app, "festejando", "Mood: festejando", true, None::<&str>)?;
             let m_skin = Submenu::with_items(app, "Aspecto del flotante", true, &[&m_dog, &m_cat, &m_cover, &m_none, &PredefinedMenuItem::separator(app)?, &m_trab, &m_prog, &m_trad, &m_desc, &m_estu, &m_fest])?;
-            let s50 = MenuItem::with_id(app, "sz50", "Muy pequeño (50%)", true, None::<&str>)?;
-            let s70 = MenuItem::with_id(app, "sz70", "Pequeño (70%)", true, None::<&str>)?;
+            let s80 = MenuItem::with_id(app, "sz80", "Pequeño (80%)", true, None::<&str>)?;
             let s100 = MenuItem::with_id(app, "sz100", "Normal (100%)", true, None::<&str>)?;
-            let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s50, &s70, &s100])?;
+            let s125 = MenuItem::with_id(app, "sz125", "Grande (125%)", true, None::<&str>)?;
+            let m_size = Submenu::with_items(app, "Tamaño del flotante", true, &[&s80, &s100, &s125])?;
             let src_y = MenuItem::with_id(app, "src_ytm", "YouTube Music", true, None::<&str>)?;
             let src_s = MenuItem::with_id(app, "src_spotify", "Spotify", true, None::<&str>)?;
             let m_src = Submenu::with_items(app, "Servicio de música", true, &[&src_y, &src_s])?;
@@ -1330,6 +1343,13 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn settings_viejos_migran_la_escala() {
+        let viejo: super::Settings = serde_json::from_str(r#"{"scale": 0.6, "welcomed": true}"#).unwrap();
+        assert!(!viejo.float_v2 && viejo.scale == 0.6 && viejo.theme == "auto");
+        assert!(super::Settings::default().float_v2);
+    }
+
     #[test]
     fn allowed_in_app() {
         let ok = |s: &str| super::allowed_in_app(&s.parse().unwrap());
