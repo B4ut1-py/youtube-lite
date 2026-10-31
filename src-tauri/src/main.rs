@@ -885,9 +885,10 @@ struct SettingsView {
 
 #[tauri::command]
 fn get_settings(app: AppHandle) -> SettingsView {
+    let settings = app.state::<AppState>().settings.lock().unwrap().clone();   // un solo bloqueo: dos en la misma expresión se traban
     SettingsView {
-        settings: app.state::<AppState>().settings.lock().unwrap().clone(),
-        glass_spec: glass_spec(&app.state::<AppState>().settings.lock().unwrap()),
+        glass_spec: glass_spec(&settings),
+        settings,
         autostart: app.autolaunch().is_enabled().unwrap_or(false),
         version: app.package_info().version.to_string(),
     }
