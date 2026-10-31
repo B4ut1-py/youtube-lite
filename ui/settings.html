@@ -80,6 +80,7 @@ const TABS = [
     [{ type: 'skins', key: 'skin' }],
     [
       { type: 'choice', key: 'theme', label: 'Tema', desc: 'Oscuro, claro o igual que Windows. Se aplica al flotante y a esta ventana.', options: [['auto', 'Automático'], ['dark', 'Oscuro'], ['light', 'Claro']] },
+      { type: 'choice', key: 'glass', label: 'Estilo del reproductor', desc: 'Cristal: vidrio translúcido. Sobre el escritorio deja ver lo que hay detrás; sobre la carátula toma los colores de la canción.', options: [['off', 'Normal'], ['desk', 'Cristal · escritorio'], ['art', 'Cristal · carátula']] },
       { type: 'range', key: 'scale', label: 'Tamaño', desc: 'También con Ctrl + rueda del mouse sobre el flotante (la rueda sola cambia el volumen).', min: 0.7, max: 1.6, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'range', key: 'float_opacity', label: 'Opacidad', desc: 'Más bajo = más transparente.', min: 0.3, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'toggle', key: 'float_on_top', label: 'Siempre encima', desc: 'Se mantiene por delante de otras ventanas.' },

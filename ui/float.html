@@ -56,10 +56,47 @@
   #badge { position: absolute; top: -9px; right: 26px; padding: 2px 9px; border-radius: 99px; font-size: 10.5px; font-weight: 650;
            letter-spacing: .2px; color: #fff; background: var(--accent); box-shadow: 0 2px 8px #0004; display: none; font-variant-numeric: tabular-nums; }
   #badge.rest { background: #2f9e5c; } #badge.sleep { background: #5b6ee1; }
+  /* ===== Estilo Cristal: vidrio translúcido con brillo en los bordes y botones tipo burbuja ===== */
+  html.glass { --glass: rgba(30, 30, 40, .28); --rim: rgba(255, 255, 255, .38); --rim2: rgba(255, 255, 255, .1); --text: #fff; --dim: rgba(255, 255, 255, .74);
+               --track: rgba(255, 255, 255, .22); --hover: rgba(255, 255, 255, .14); --tint: rgba(255, 255, 255, .1); }
+  html.glass.light { --glass: rgba(255, 255, 255, .34); --rim: rgba(255, 255, 255, .85); --rim2: rgba(255, 255, 255, .35); --text: #14141a; --dim: rgba(20, 20, 26, .64);
+                     --track: rgba(0, 0, 0, .14); --hover: rgba(255, 255, 255, .45); --tint: rgba(255, 255, 255, .35); }
+  html.glass .card { background: var(--glass); border: 0; border-radius: 22px;
+    box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), inset 1px 0 0 var(--rim2), inset -1px 0 0 var(--rim2), 0 10px 26px rgba(0, 0, 0, .28); }
+  /* brillo especular arriba a la izquierda, reflejo abajo y canto del vidrio */
+  html.glass .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(120% 90% at 8% -10%, rgba(255, 255, 255, .36), transparent 45%), radial-gradient(80% 60% at 100% 120%, rgba(255, 255, 255, .15), transparent 55%); }
+  html.glass .card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1.2px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .75), rgba(255, 255, 255, .08) 35%, rgba(255, 255, 255, .04) 65%, rgba(255, 255, 255, .45));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+  html.glass .tile { border-radius: 15px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28), 0 4px 12px rgba(0, 0, 0, .18); }
+  html.glass #title, html.glass #artist { text-shadow: 0 1px 2px rgba(0, 0, 0, .2); }
+  html.glass.light #title, html.glass.light #artist { text-shadow: 0 1px 1px rgba(255, 255, 255, .5); }
+  html.glass .b { opacity: 1; }
+  html.glass #prev, html.glass #next { background: var(--tint); border-radius: 50%; box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
+  html.glass #pp { background: linear-gradient(180deg, rgba(255, 110, 145, .95), rgba(255, 61, 110, .78));
+    box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, .65), inset 0 -2px 4px rgba(120, 0, 40, .25), 0 4px 14px rgba(255, 61, 110, .45); }
+  html.glass #fill { background: linear-gradient(90deg, #ff6f95, #ff3d6e); box-shadow: 0 0 6px rgba(255, 61, 110, .6); }
+  html.glass #bar, html.glass #vbar { box-shadow: inset 0 1px 1px rgba(0, 0, 0, .12); }
+  html.glass #vfill { background: var(--text); opacity: .9; }
+  html.glass #badge { background: rgba(255, 61, 110, .85); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 2px 8px #0003; }
+  /* A: sobre el escritorio. La ventana es la tarjeta y Windows pone el desenfoque (la app recorta las esquinas) */
+  html.glass-desk body { padding: 0; }
+  html.glass-desk.light { --glass: rgba(255, 255, 255, .58); }   /* Windows tiñe el vidrio según su propio modo: más blanco para que el texto se lea */
+  html.glass-desk .card { width: 100vw; height: 100vh; box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), inset 1px 0 0 var(--rim2), inset -1px 0 0 var(--rim2); }
+  html.glass-desk #badge { top: auto; bottom: 14px; right: auto; left: 18px; }   /* dentro de la tarjeta, sobre el recuadro */
+  /* B: sobre la carátula de la canción, muy desenfocada */
+  #art { display: none; position: absolute; inset: 0; border-radius: inherit; overflow: hidden; z-index: -1;
+         background: linear-gradient(135deg, #ff7a9c, #7a4dff); }
+  html.glass-art #art { display: block; } html.glass-art .card { background: transparent; isolation: isolate; }
+  #art img { position: absolute; left: -20%; top: -100%; width: 140%; height: 300%; object-fit: cover; filter: blur(26px) saturate(1.6) brightness(.8); }
+  html.light #art img { filter: blur(26px) saturate(1.5) brightness(1.25); }
+  #art::after { content: ""; position: absolute; inset: 0; background: var(--glass); }
 </style>
 </head>
 <body>
 <div class="card" id="card">
+  <div id="art"><img id="artimg" alt=""></div>
   <div class="tile" id="stage" title="Clic: pausar / reanudar · Arrastra para mover · Rueda: volumen · Ctrl + rueda: tamaño">
     <canvas id="bg" width="96" height="96"></canvas>
     <canvas class="ch" id="body" width="64" height="64"></canvas>
@@ -228,7 +265,7 @@ function drawRoom(skin) {
 
 /* ---------- Estado ---------- */
 let CFG = { blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90, mood_min_s: 15, mood_max_s: 30, float_opacity: 1, theme: 'auto' };
-let skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
+let glass = 'off', skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
 const ICON = {
   play: '<path d="M8 5.5v13l10.5-6.5z"/>', pause: '<path d="M7 5h3.6v14H7zm6.4 0H17v14h-3.6z"/>',
   heart: '<path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.6 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.5 3.1 4.3 6.3C19.5 15.4 12 20 12 20z"/>',
@@ -240,6 +277,10 @@ function render(st) {
   if (st.cfg) {
     CFG = st.cfg; document.body.style.opacity = CFG.float_opacity;
     if (CFG.theme !== theme) { theme = CFG.theme; applyTheme(theme); }
+    if ((CFG.glass || 'off') !== glass) {
+      glass = CFG.glass || 'off'; const r = document.documentElement.classList;
+      r.toggle('glass', glass !== 'off'); r.toggle('glass-desk', glass === 'desk'); r.toggle('glass-art', glass === 'art');
+    }
   }
   if (st.skin !== skin) {
     skin = st.skin; sleeping = null;
@@ -269,7 +310,7 @@ function render(st) {
   if (was !== playing || !ppDrawn) { $('ppi').innerHTML = playing ? ICON.pause : ICON.play; $('pp').title = playing ? 'Pausar' : 'Reproducir'; ppDrawn = true; }
   if (!!st.liked !== liked) { liked = !!st.liked; $('likei').innerHTML = liked ? ICON.heart : ICON.heartO; $('like').classList.toggle('on', liked); }
   const url = st.cover || '';
-  if (url !== cover) { cover = url; if (url) $('cover').src = url; else $('cover').removeAttribute('src'); }
+  if (url !== cover) { cover = url; for (const im of [$('cover'), $('artimg')]) if (url) im.src = url; else im.removeAttribute('src'); }
   setTitle(st.title || 'Lite Music');
   setText($('artist'), st.artist || '');
   setProgress(st);
