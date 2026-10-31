@@ -72,7 +72,18 @@
       alert('Lite Music: Widevine no está disponible en este equipo, por eso Spotify no reproduce.\n' + e)), 4000);
   }
   const T = (id) => `[data-testid="${id}"]`;
-  const spMedia = () => document.querySelector('audio, video');
+  // El audio de Spotify no está en la página (el único <video> visible es el "Canvas": un clip mudo que se repite).
+  // Se toma el elemento que suena cuando Spotify lo reproduce; con la ventana oculta el Canvas no se reproduce (ahorra CPU).
+  let spAudio = null, lmHidden = false;
+  if (SP) {
+    const play0 = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (...a) {
+      if (this.muted && lmHidden) return Promise.resolve();
+      if (!this.muted) spAudio = this;
+      return play0.apply(this, a);
+    };
+  }
+  const spMedia = () => spAudio;
   let spPrev = { pos: -1, at: 0, playing: false };
   const qs = (sel, root = document) => root.querySelector(sel);
   // Se prueba cada fuente en orden; la interfaz de Spotify cambia a menudo, así que ninguna es imprescindible.
@@ -127,7 +138,11 @@
     pause: () => { if (spState().playing) click(T('control-button-playpause')); },
     times: () => { const s = spState(); return { pos: s.pos, dur: s.dur }; },
     seek: (f) => spSeek(f),
-    setHidden: (h, full) => { const r = document.documentElement; if (!r) return; r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full); },
+    setHidden: (h, full) => {
+      lmHidden = h;
+      document.querySelectorAll('video').forEach((v) => { if (v.muted) h ? v.pause() : v.play().catch(() => {}); });
+      const r = document.documentElement; if (!r) return; r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full);
+    },
   } : {
     playPause: () => {
       const v = document.querySelector('video');

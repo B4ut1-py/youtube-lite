@@ -515,7 +515,7 @@ fn start_ticker(app: AppHandle) {
         if let Some(w) = main_window(&app) {
             let st = app.state::<AppState>();
             let enabled = st.settings.lock().unwrap().idle_webview;
-            let hidden = !w.is_visible().unwrap_or(true);
+            let hidden = !w.is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst);
             let (susp, after) = {
                 let c = st.settings.lock().unwrap();
                 (c.suspend_idle && c.idle_webview, c.suspend_after_s)
@@ -887,6 +887,7 @@ fn set_webview_memory(_w: &WebviewWindow, _low: bool) {}
 
 // Suspende la página por completo (no ejecuta nada, como una pestaña congelada). Solo con la ventana oculta.
 static SUSPENDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static MINIMIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(windows)]
 fn set_webview_suspended(w: &WebviewWindow, suspend: bool) {
@@ -1097,7 +1098,7 @@ fn main() {
             })
             // Una página que se recarga con la ventana oculta (caída, vigilante, cambio de servicio) vuelve al modo ahorro.
             .on_page_load(|w, p| {
-                if p.event() == tauri::webview::PageLoadEvent::Finished && !w.is_visible().unwrap_or(true) {
+                if p.event() == tauri::webview::PageLoadEvent::Finished && (!w.is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst)) {
                     set_main_idle(w.app_handle(), true);
                 }
             })
@@ -1139,8 +1140,8 @@ fn main() {
             // Cerrar = ocultar a la bandeja; la música sigue sonando.
             let w = window.clone();
             let wapp = app.handle().clone();
-            window.on_window_event(move |e| {
-                if let WindowEvent::CloseRequested { api, .. } = e {
+            window.on_window_event(move |e| match e {
+                WindowEvent::CloseRequested { api, .. } => {
                     if wapp.state::<AppState>().settings.lock().unwrap().close_to_tray {
                         api.prevent_close();
                         hide(&wapp, &w);
@@ -1148,6 +1149,14 @@ fn main() {
                         wapp.exit(0);
                     }
                 }
+                // Minimizada ahorra igual que en la bandeja (antes seguía dibujando la página como si se viera).
+                WindowEvent::Resized(_) => {
+                    let min = w.is_minimized().unwrap_or(false);
+                    if min != MINIMIZED.swap(min, std::sync::atomic::Ordering::SeqCst) {
+                        set_main_idle(&wapp, min);
+                    }
+                }
+                _ => {}
             });
 
             // Bandeja del sistema
