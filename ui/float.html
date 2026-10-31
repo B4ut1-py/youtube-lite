@@ -59,7 +59,7 @@
   /* ===== Estilo Cristal: vidrio translúcido con brillo en los bordes y botones tipo burbuja ===== */
   html.glass { --glass: rgba(30, 30, 40, .28); --rim: rgba(255, 255, 255, .38); --rim2: rgba(255, 255, 255, .1); --text: #fff; --dim: rgba(255, 255, 255, .74);
                --track: rgba(255, 255, 255, .22); --hover: rgba(255, 255, 255, .14); --tint: rgba(255, 255, 255, .1); }
-  html.glass.light { --glass: rgba(255, 255, 255, .34); --rim: rgba(255, 255, 255, .85); --rim2: rgba(255, 255, 255, .35); --text: #14141a; --dim: rgba(20, 20, 26, .64);
+  html.glass.light { --glass: rgba(255, 255, 255, .42); --rim: rgba(255, 255, 255, .85); --rim2: rgba(255, 255, 255, .35); --text: #14141a; --dim: rgba(20, 20, 26, .78);
                      --track: rgba(0, 0, 0, .14); --hover: rgba(255, 255, 255, .45); --tint: rgba(255, 255, 255, .35); }
   html.glass .card { background: var(--glass); border: 0; border-radius: 22px;
     box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), inset 1px 0 0 var(--rim2), inset -1px 0 0 var(--rim2), 0 10px 26px rgba(0, 0, 0, .28); }
@@ -80,15 +80,10 @@
   html.glass #bar, html.glass #vbar { box-shadow: inset 0 1px 1px rgba(0, 0, 0, .12); }
   html.glass #vfill { background: var(--text); opacity: .9; }
   html.glass #badge { background: rgba(255, 61, 110, .85); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 2px 8px #0003; }
-  /* A: sobre el escritorio. La ventana es la tarjeta y Windows pone el desenfoque (la app recorta las esquinas) */
-  html.glass-desk body { padding: 0; }
-  html.glass-desk.light { --glass: rgba(255, 255, 255, .58); }   /* Windows tiñe el vidrio según su propio modo: más blanco para que el texto se lea */
-  html.glass-desk .card { width: 100vw; height: 100vh; box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), inset 1px 0 0 var(--rim2), inset -1px 0 0 var(--rim2); }
-  html.glass-desk #badge { top: auto; bottom: 14px; right: auto; left: 18px; }   /* dentro de la tarjeta, sobre el recuadro */
-  /* B: sobre la carátula de la canción, muy desenfocada */
+  /* fondo: la carátula de la canción, muy desenfocada */
   #art { display: none; position: absolute; inset: 0; border-radius: inherit; overflow: hidden; z-index: -1;
          background: linear-gradient(135deg, #ff7a9c, #7a4dff); }
-  html.glass-art #art { display: block; } html.glass-art .card { background: transparent; isolation: isolate; }
+  html.glass #art { display: block; } html.glass .card { background: transparent; isolation: isolate; }
   #art img { position: absolute; left: -20%; top: -100%; width: 140%; height: 300%; object-fit: cover; filter: blur(26px) saturate(1.6) brightness(.8); }
   html.light #art img { filter: blur(26px) saturate(1.5) brightness(1.25); }
   #art::after { content: ""; position: absolute; inset: 0; background: var(--glass); }
@@ -265,7 +260,7 @@ function drawRoom(skin) {
 
 /* ---------- Estado ---------- */
 let CFG = { blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90, mood_min_s: 15, mood_max_s: 30, float_opacity: 1, theme: 'auto' };
-let glass = 'off', skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
+let glass = false, skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
 const ICON = {
   play: '<path d="M8 5.5v13l10.5-6.5z"/>', pause: '<path d="M7 5h3.6v14H7zm6.4 0H17v14h-3.6z"/>',
   heart: '<path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.6 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.5 3.1 4.3 6.3C19.5 15.4 12 20 12 20z"/>',
@@ -277,10 +272,7 @@ function render(st) {
   if (st.cfg) {
     CFG = st.cfg; document.body.style.opacity = CFG.float_opacity;
     if (CFG.theme !== theme) { theme = CFG.theme; applyTheme(theme); }
-    if ((CFG.glass || 'off') !== glass) {
-      glass = CFG.glass || 'off'; const r = document.documentElement.classList;
-      r.toggle('glass', glass !== 'off'); r.toggle('glass-desk', glass === 'desk'); r.toggle('glass-art', glass === 'art');
-    }
+    if ((CFG.glass === 'art') !== glass) { glass = CFG.glass === 'art'; document.documentElement.classList.toggle('glass', glass); }
   }
   if (st.skin !== skin) {
     skin = st.skin; sleeping = null;

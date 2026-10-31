@@ -62,7 +62,7 @@ struct Settings {
     welcomed: bool,
     notify_song: bool,
     theme: String,  // "auto" (sigue a Windows), "dark" o "light"
-    glass: String,  // estilo del flotante: "off", "desk" (cristal sobre el escritorio) o "art" (cristal sobre la carátula)
+    glass: String,  // estilo del flotante: "off" o "art" (cristal sobre la carátula)
     #[serde(default)] // ausente en archivos viejos = false (el default de la estructura es true para instalaciones nuevas)
     float_v2: bool, // ya se adaptó la escala al flotante nuevo (tarjeta)
 }
@@ -125,29 +125,6 @@ struct AppState {
 
 const FLOAT_W: f64 = 312.0; // tarjeta de 288x116 más margen para la sombra y la etiqueta de arriba
 const FLOAT_H: f64 = 144.0;
-
-// Con cristal sobre el escritorio la ventana es la tarjeta misma: Windows desenfoca lo que hay detrás.
-fn float_size(glass: &str) -> (f64, f64) {
-    if glass == "desk" { (288.0, 116.0) } else { (FLOAT_W, FLOAT_H) }
-}
-
-// Aplica el estilo de ventana del flotante: tamaño y vidrio de Windows (acrílico) solo en el modo "desk",
-// recortado con esquinas de 22 px como la tarjeta (las de Windows 11 son de 8 px).
-fn apply_float_glass(w: &WebviewWindow, glass: &str, scale: f64) {
-    use tauri::window::{Effect, EffectsBuilder};
-    let desk = glass == "desk";
-    let (fw, fh) = float_size(glass);
-    let _ = w.set_effects(if desk { Some(EffectsBuilder::new().effect(Effect::Acrylic).build()) } else { None });
-    let _ = w.set_size(LogicalSize::new(fw * scale, fh * scale));
-    #[cfg(windows)]
-    if let Ok(h) = w.hwnd() {
-        use windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn, HRGN};
-        // shortcut: el recorte no se rehace si cambia el DPI con el flotante abierto; se corrige al cambiar tamaño o estilo.
-        let px = |v: f64| (v * scale * w.scale_factor().unwrap_or(1.0)).round() as i32;
-        let rgn = if desk { unsafe { CreateRoundRectRgn(0, 0, px(fw) + 1, px(fh) + 1, px(44.0), px(44.0)) } } else { HRGN::default() };
-        let _ = unsafe { SetWindowRgn(windows::Win32::Foundation::HWND(h.0 as _), Some(rgn), true) }; // Windows se queda con la región
-    }
-}
 
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
@@ -300,14 +277,9 @@ fn set_skin(app: &AppHandle, skin: &str) {
 // Cambia el tamaño del flotante: la ventana y su contenido (zoom) escalan juntos.
 fn set_float_scale(app: &AppHandle, scale: f64) {
     let scale = scale.clamp(0.7, 1.6);
-    let st = app.state::<AppState>();
-    let glass = {
-        let mut c = st.settings.lock().unwrap();
-        c.scale = scale;
-        c.glass.clone()
-    };
+    app.state::<AppState>().settings.lock().unwrap().scale = scale;
     if let Some(w) = app.get_webview_window("float") {
-        apply_float_glass(&w, &glass, scale);
+        let _ = w.set_size(LogicalSize::new(FLOAT_W * scale, FLOAT_H * scale));
         let _ = w.set_zoom(scale);
     }
     save_settings(app);
@@ -342,7 +314,7 @@ fn create_float(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     #[allow(unused_mut)]
     let mut fb = WebviewWindowBuilder::new(app, "float", WebviewUrl::App("float.html".into()))
         .title("Lite Music Float")
-        .inner_size(float_size(&cfg.glass).0 * cfg.scale, float_size(&cfg.glass).1 * cfg.scale)
+        .inner_size(FLOAT_W * cfg.scale, FLOAT_H * cfg.scale)
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -357,9 +329,6 @@ fn create_float(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     reload_on_crash(app, w.as_ref());
     set_webview_memory(w.as_ref(), true); // página chiquita siempre a la vista: no necesita las cachés de una pestaña normal
     let _ = w.set_zoom(cfg.scale);
-    if cfg.glass == "desk" {
-        apply_float_glass(&w, &cfg.glass, cfg.scale);
-    }
     restore_float_pos(app, &w);
     let ah = app.clone();
     w.on_window_event(move |e| {
@@ -925,7 +894,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "close_to_tray" => if let Some(v) = b { c.close_to_tray = v },
             "notify_song" => if let Some(v) = b { c.notify_song = v },
             "theme" => if let Some(v) = value.as_str().filter(|v| ["auto", "dark", "light"].contains(v)) { c.theme = v.into() },
-            "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "desk", "art"].contains(v)) { c.glass = v.into() },
+            "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "art"].contains(v)) { c.glass = v.into() },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
             "idle_webview" => if let Some(v) = b { c.idle_webview = v },
             "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
@@ -938,11 +907,6 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
         "scale" => if let Some(v) = n { set_float_scale(&app, v) },
         "source" => if let Some(v) = value.as_str() { set_source(&app, v) },
         "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
-        "glass" => if let Some(w) = app.get_webview_window("float") {
-            let st = app.state::<AppState>();
-            let (glass, scale) = { let c = st.settings.lock().unwrap(); (c.glass.clone(), c.scale) };
-            apply_float_glass(&w, &glass, scale);
-        },
         "autostart" => if let Some(v) = b {
             let al = app.autolaunch();
             let _ = if v { al.enable() } else { al.disable() };
