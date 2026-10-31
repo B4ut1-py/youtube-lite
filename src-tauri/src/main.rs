@@ -140,7 +140,8 @@ fn save_settings(app: &AppHandle) {
 
 // Lee settings.json; si no existe (versiones anteriores) toma lo guardado en los archivos sueltos.
 fn load_settings(app: &AppHandle) -> Settings {
-    if let Some(s) = settings_path(app).and_then(|p| fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<Settings>(&t).ok()) {
+    // Sin la marca BOM que agregan algunos editores: con ella el archivo no se lee y se pierden todos los ajustes.
+    if let Some(s) = settings_path(app).and_then(|p| fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<Settings>(t.trim_start_matches('\u{feff}')).ok()) {
         return s;
     }
     let mut s = Settings::default();
