@@ -370,6 +370,8 @@ function drawFx(u, name) {
   fxC.globalAlpha = 1;
 }
 function frame(now) {
+  // ~30 cuadros por segundo parejos (uno de cada dos refrescos a 60 Hz): menos de la mitad del gasto de 60 y sin tirones
+  if (now - last < 30) { raf = requestAnimationFrame(frame); return; }
   raf = 0;
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   amp += ((playing ? 1 : 0) - amp) * Math.min(1, dt * 2.5);          // arranca y frena con suavidad
@@ -399,12 +401,12 @@ function frame(now) {
     }
   }
   const skew = s1 * 3.5 * amp;
-  bodyEl.style.transform = `translateY(${Math.round(-hop * K)}px) skewX(${skew.toFixed(2)}deg)`;
+  // sin redondear: la rotación ya suaviza los píxeles, y redondear el desplazamiento lo hacía avanzar a saltos de 1 px
+  bodyEl.style.transform = `translateY(${(-hop * K).toFixed(2)}px) skewX(${skew.toFixed(2)}deg)`;
   const neck = -Math.tan(skew * Math.PI / 180) * 50 * K;
-  head.style.transform = `translate(${Math.round(neck + (s2 * 5 * amp + rx) * K)}px, ${Math.round((slump * 5 - hop + dip) * K)}px) rotate(${(s2 * 5 * amp + rrot - slump * 4).toFixed(2)}deg)`;
+  head.style.transform = `translate(${(neck + (s2 * 5 * amp + rx) * K).toFixed(2)}px, ${((slump * 5 - hop + dip) * K).toFixed(2)}px) rotate(${(s2 * 5 * amp + rrot - slump * 4).toFixed(2)}deg)`;
   // se detiene del todo cuando no hay nada que animar (ahorra CPU)
-  // ~25 cuadros por segundo: para un vaivén de pixel art alcanza, y gasta menos de la mitad que 60
-  if (kind === 'animal' && (playing || amp > 0.01 || Math.abs(slump - (playing ? 0 : 1)) > 0.01 || fx)) raf = setTimeout(() => requestAnimationFrame(frame), 33);
+  if (kind === 'animal' && (playing || amp > 0.01 || Math.abs(slump - (playing ? 0 : 1)) > 0.01 || fx)) raf = requestAnimationFrame(frame);
 }
 
 /* ---------- Moods: personas, pixel art a ~12 fps solo mientras suena ---------- */
