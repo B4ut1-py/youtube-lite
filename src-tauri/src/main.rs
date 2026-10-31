@@ -326,6 +326,7 @@ fn create_float(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     }
     let w = fb.build()?;
     reload_on_crash(app, w.as_ref());
+    set_webview_memory(w.as_ref(), true); // página chiquita siempre a la vista: no necesita las cachés de una pestaña normal
     let _ = w.set_zoom(cfg.scale);
     restore_float_pos(app, &w);
     let ah = app.clone();
@@ -521,7 +522,7 @@ fn start_ticker(app: AppHandle) {
     let mut extra_trim: Vec<Instant> = Vec::new();
     loop {
         std::thread::sleep(Duration::from_secs(1));
-        // Ventana oculta: tras cambiar de canción (o cada 3 min) la página vuelve a crecer; se le pide de nuevo bajar la memoria.
+        // Ventana oculta: mientras suena la página vuelve a crecer (cambio de canción, buffers); se le pide bajar la memoria cada 30 s.
         if let Some(w) = main_window(&app) {
             let st = app.state::<AppState>();
             let enabled = st.settings.lock().unwrap().idle_webview;
@@ -560,12 +561,15 @@ fn start_ticker(app: AppHandle) {
                     last_title = title;
                     trim_at = Some(Instant::now() + Duration::from_secs(10));
                 }
-                let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(120);
+                let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(30);
                 if due {
                     stop_service_workers(&w);
+                    let float = app.get_webview_window("float");
                     set_webview_memory(&w, false);
+                    if let Some(f) = &float { set_webview_memory(f.as_ref(), false); }
                     std::thread::sleep(Duration::from_millis(300));
                     set_webview_memory(&w, true);
+                    if let Some(f) = &float { set_webview_memory(f.as_ref(), true); }
                     trim_at = None;
                     last_trim = Instant::now();
                 }
