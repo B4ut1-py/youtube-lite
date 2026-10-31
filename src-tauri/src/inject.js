@@ -187,9 +187,18 @@
     const expected = sent.pos + (n.playing ? (now - sentAt) / 1000 : 0);
     return Math.abs(n.pos - expected) > 3 || now - sentAt > 30000;          // salto de tiempo o señal de vida
   };
+  // "¿Sigues ahí?": tras horas sin tocar nada YouTube Music pausa y pregunta; con la ventana cerrada nadie lo ve.
+  // Se pulsa su botón solo si el diálogo está abierto (al cerrarlo YouTube Music reanuda por su cuenta).
+  const youThere = () => {
+    const d = document.querySelector('ytmusic-you-there-renderer')?.closest('tp-yt-paper-dialog');
+    if (!d || getComputedStyle(d).display === 'none') return;
+    const b = d.querySelector('ytmusic-you-there-renderer yt-button-renderer[dialog-confirm]');
+    (b?.querySelector('button') || b)?.click();
+  };
   const tick = async () => {
     clearTimeout(timer);
     try {
+      if (!SP) youThere();
       const n = snapshot();
       if (changed(n)) { sent = n; sentAt = Date.now(); wanted = await invoke('report_state', n); }
     } catch (_) {}
