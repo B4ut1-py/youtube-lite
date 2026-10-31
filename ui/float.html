@@ -87,6 +87,36 @@
   #art img { position: absolute; left: -20%; top: -100%; width: 140%; height: 300%; object-fit: cover; filter: blur(26px) saturate(1.6) brightness(.8); }
   html.light #art img { filter: blur(26px) saturate(1.5) brightness(1.25); }
   #art::after { content: ""; position: absolute; inset: 0; background: var(--glass); }
+  /* Transparente: el mismo vidrio, pero se ve la pantalla de atrás en vez de la carátula (la ventana ya es transparente) */
+  html.glass.screen #art { display: none; }
+  html.glass.screen .card { background: rgba(18, 18, 26, .42); }
+  html.glass.screen.light .card { background: rgba(255, 255, 255, .55); }
+  html.glass.screen #title, html.glass.screen #artist { text-shadow: 0 1px 3px rgba(0, 0, 0, .55); }
+  html.glass.screen.light #title, html.glass.screen.light #artist { text-shadow: 0 1px 2px rgba(255, 255, 255, .8); }
+  /* ===== Formato compacto: una sola fila (mascota o carátula chica, título, controles y progreso fino abajo) ===== */
+  body.fmt-compact .card { height: 64px; padding: 8px 10px 8px 8px; align-items: center; }
+  body.fmt-compact .tile { zoom: .5; border-radius: 20px; }                      /* el mismo recuadro de 96 a la mitad */
+  body.fmt-compact .info { flex-direction: row; align-items: center; gap: 6px; }
+  body.fmt-compact .head { flex: 1; min-width: 0; margin-right: 4px; }
+  body.fmt-compact #title { font-size: 13.5px; }
+  body.fmt-compact #like, body.fmt-compact #vcol, body.fmt-compact .prog span { display: none; }
+  body.fmt-compact .prog { position: absolute; left: 66px; right: 12px; bottom: 5px; margin: 0; }
+  body.fmt-compact.kind-none .prog { left: 12px; }
+  body.fmt-compact #bar { height: 3px; }
+  body.fmt-compact .ctr { margin: 0; gap: 4px; }
+  body.fmt-compact #pp { width: 30px; height: 30px; } body.fmt-compact #pp svg { width: 16px; height: 16px; }
+  /* ===== Formato ultra compacto: cápsula con la carátula (anillo de progreso), título y play ===== */
+  body.fmt-mini .card { width: 176px; height: 40px; padding: 4px 6px 4px 4px; gap: 8px; align-items: center; border-radius: 999px; }
+  body.fmt-mini .tile { width: 32px; height: 32px; border-radius: 50%; background: conic-gradient(var(--accent) calc(var(--p, 0) * 1turn), var(--track) 0); }
+  body.fmt-mini #cover { inset: 3px; width: 26px; height: 26px; border-radius: 50%; }
+  body.fmt-mini .info { flex-direction: row; align-items: center; gap: 2px; }
+  body.fmt-mini .head { flex: 1; min-width: 0; margin-right: 4px; }
+  body.fmt-mini #title { margin: 0; font-size: 12.5px; }
+  body.fmt-mini #artist, body.fmt-mini #like, body.fmt-mini .prog, body.fmt-mini #vcol { display: none; }
+  body.fmt-mini .ctr { margin: 0; gap: 2px; }
+  body.fmt-mini #prev, body.fmt-mini #next { width: 24px; height: 24px; } body.fmt-mini .b svg { width: 15px; height: 15px; }
+  body.fmt-mini #pp { width: 28px; height: 28px; }
+  body.fmt-mini:not(:hover) #prev, body.fmt-mini:not(:hover) #next { display: none; }   /* aparecen al pasar el mouse */
 </style>
 </head>
 <body>
@@ -260,7 +290,7 @@ function drawRoom(skin) {
 
 /* ---------- Estado ---------- */
 let CFG = { blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90, mood_min_s: 15, mood_max_s: 30, float_opacity: 1, theme: 'auto' };
-let glass = false, skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
+let glass = '', format = '', skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
 const ICON = {
   play: '<path d="M8 5.5v13l10.5-6.5z"/>', pause: '<path d="M7 5h3.6v14H7zm6.4 0H17v14h-3.6z"/>',
   heart: '<path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.6 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.5 3.1 4.3 6.3C19.5 15.4 12 20 12 20z"/>',
@@ -272,12 +302,19 @@ function render(st) {
   if (st.cfg) {
     CFG = st.cfg; document.body.style.opacity = CFG.float_opacity;
     if (CFG.theme !== theme) { theme = CFG.theme; applyTheme(theme); }
-    if ((CFG.glass === 'art') !== glass) { glass = CFG.glass === 'art'; document.documentElement.classList.toggle('glass', glass); }
+    if (CFG.glass !== glass) {                                     // "art": vidrio sobre la carátula; "screen": transparente sobre la pantalla
+      glass = CFG.glass; const r = document.documentElement;
+      r.classList.toggle('glass', glass === 'art' || glass === 'screen'); r.classList.toggle('screen', glass === 'screen');
+    }
+    if (CFG.format !== format) {                                   // el ultra compacto muestra siempre la carátula: se vuelve a elegir el aspecto
+      format = CFG.format || 'normal'; skin = ''; shownTitle = null;
+      document.body.classList.remove('fmt-normal', 'fmt-compact', 'fmt-mini'); document.body.classList.add('fmt-' + format);
+    }
   }
   if (st.skin !== skin) {
     skin = st.skin; sleeping = null;
     document.body.className = document.body.className.replace(/\b(skin|kind)-\S+/g, '').trim();
-    kind = ['dog', 'cat'].includes(skin) ? 'animal' : (skin === 'cover' || skin === 'none') ? skin : 'mood';
+    kind = format === 'mini' ? 'cover' : ['dog', 'cat'].includes(skin) ? 'animal' : (skin === 'cover' || skin === 'none') ? skin : 'mood';
     document.body.classList.add('skin-' + skin, 'kind-' + kind);
     drawRoom(skin);
     if (kind === 'animal') drawBody(skin);
@@ -346,6 +383,7 @@ function paintProgress() {
     frac = prog.dur - est < 0.9 && playing ? 1 : est / prog.dur;       // cerca del final: completa la barra
   }
   $('fill').style.width = (frac * 100).toFixed(1) + '%';
+  $('stage').style.setProperty('--p', frac.toFixed(3));            // anillo del ultra compacto
   setText($('tcur'), fmt(est)); setText($('tdur'), fmt(prog.dur));
 }
 setInterval(paintProgress, 1000);
@@ -514,6 +552,8 @@ document.body.addEventListener('wheel', (e) => {
   else inv('control', { action: 'volume_step', value: e.deltaY < 0 ? 0.05 : -0.05 });
 }, { passive: false });
 
+// en el ultra compacto, anterior y siguiente aparecen con el mouse encima y el título cambia de ancho
+['mouseenter', 'mouseleave'].forEach((ev) => document.body.addEventListener(ev, () => { if (format === 'mini') { const t = shownTitle; shownTitle = null; setTitle(t); } }));
 $('likei').innerHTML = ICON.heartO;
 if (window.__TAURI_INTERNALS__) { poll(); setInterval(poll, 500); }
 kick();

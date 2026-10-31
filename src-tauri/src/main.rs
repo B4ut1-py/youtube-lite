@@ -62,7 +62,8 @@ struct Settings {
     welcomed: bool,
     notify_song: bool,
     theme: String,  // "auto" (sigue a Windows), "dark" o "light"
-    glass: String,  // estilo del flotante: "off" o "art" (cristal sobre la carátula)
+    glass: String,  // estilo del flotante: "off", "art" (cristal sobre la carátula) o "screen" (transparente sobre la pantalla)
+    format: String, // formato del flotante: "normal", "compact" (una fila) o "mini" (cápsula)
     #[serde(default)] // ausente en archivos viejos = false (el default de la estructura es true para instalaciones nuevas)
     float_v2: bool, // ya se adaptó la escala al flotante nuevo (tarjeta)
 }
@@ -73,7 +74,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), glass: "off".into(), float_v2: true,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), glass: "off".into(), format: "normal".into(), float_v2: true,
         }
     }
 }
@@ -123,8 +124,15 @@ struct AppState {
     sleep_at: Mutex<Option<Instant>>, // temporizador para dormir: cuándo pausar
 }
 
-const FLOAT_W: f64 = 312.0; // tarjeta de 288x116 más margen para la sombra y la etiqueta de arriba
-const FLOAT_H: f64 = 144.0;
+// Tamaño de la ventana del flotante según su formato: la tarjeta más margen para la sombra y la etiqueta de arriba.
+fn float_size(format: &str, scale: f64) -> LogicalSize<f64> {
+    let (w, h) = match format {
+        "compact" => (312.0, 92.0), // tarjeta de 288x64
+        "mini" => (200.0, 68.0),    // cápsula de 176x40
+        _ => (312.0, 144.0),        // tarjeta de 288x116
+    };
+    LogicalSize::new(w * scale, h * scale)
+}
 
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
@@ -277,9 +285,10 @@ fn set_skin(app: &AppHandle, skin: &str) {
 // Cambia el tamaño del flotante: la ventana y su contenido (zoom) escalan juntos.
 fn set_float_scale(app: &AppHandle, scale: f64) {
     let scale = scale.clamp(0.7, 1.6);
-    app.state::<AppState>().settings.lock().unwrap().scale = scale;
+    let st = app.state::<AppState>();
+    let format = { let mut c = st.settings.lock().unwrap(); c.scale = scale; c.format.clone() };
     if let Some(w) = app.get_webview_window("float") {
-        let _ = w.set_size(LogicalSize::new(FLOAT_W * scale, FLOAT_H * scale));
+        let _ = w.set_size(float_size(&format, scale));
         let _ = w.set_zoom(scale);
     }
     save_settings(app);
@@ -311,10 +320,11 @@ fn cfg_write(app: &AppHandle, name: &str, value: &str) {
 // Crea el flotante (sin marco, sin fondo, siempre encima) con el tamaño, posición y opciones guardados.
 fn create_float(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let cfg = app.state::<AppState>().settings.lock().unwrap().clone();
+    let size = float_size(&cfg.format, cfg.scale);
     #[allow(unused_mut)]
     let mut fb = WebviewWindowBuilder::new(app, "float", WebviewUrl::App("float.html".into()))
         .title("Lite Music Float")
-        .inner_size(FLOAT_W * cfg.scale, FLOAT_H * cfg.scale)
+        .inner_size(size.width, size.height)
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -894,7 +904,8 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "close_to_tray" => if let Some(v) = b { c.close_to_tray = v },
             "notify_song" => if let Some(v) = b { c.notify_song = v },
             "theme" => if let Some(v) = value.as_str().filter(|v| ["auto", "dark", "light"].contains(v)) { c.theme = v.into() },
-            "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "art"].contains(v)) { c.glass = v.into() },
+            "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "art", "screen"].contains(v)) { c.glass = v.into() },
+            "format" => if let Some(v) = value.as_str().filter(|v| ["normal", "compact", "mini"].contains(v)) { c.format = v.into() },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
             "idle_webview" => if let Some(v) = b { c.idle_webview = v },
             "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
@@ -905,6 +916,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
     match key.as_str() {
         "skin" => if let Some(v) = value.as_str() { set_skin(&app, v) },
         "scale" => if let Some(v) = n { set_float_scale(&app, v) },
+        "format" => { let cur = app.state::<AppState>().settings.lock().unwrap().scale; set_float_scale(&app, cur) }   // ajusta la ventana al formato
         "source" => if let Some(v) = value.as_str() { set_source(&app, v) },
         "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
         "autostart" => if let Some(v) = b {
