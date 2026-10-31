@@ -733,7 +733,7 @@ fn get_state(state: tauri::State<AppState>) -> PlayerState {
 
 #[tauri::command]
 fn control(app: AppHandle, action: String, value: Option<f64>) {
-    if action == "search" { return toggle_search(&app); }
+    if action == "search" { return open_search(&app); }
     let code = match action.as_str() {
         "playpause" => "window.__lm&&window.__lm.playPause()".to_string(),
         "next" => "window.__lm&&window.__lm.next()".to_string(),
@@ -1233,6 +1233,13 @@ fn toggle_search(app: &AppHandle) {
     let _ = w.set_focus();
 }
 
+// Crear una ventana desde un comando sincrónico (la lupa del flotante) traba Tauri en Windows:
+// la búsqueda siempre se abre desde una tarea aparte.
+fn open_search(app: &AppHandle) {
+    let a = app.clone();
+    tauri::async_runtime::spawn(async move { toggle_search(&a) });
+}
+
 // centrada a lo ancho y un poco arriba, en la pantalla donde está el mouse
 fn place_search(w: &WebviewWindow) {
     let m = w.cursor_position().ok().and_then(|p| w.monitor_from_point(p.x, p.y).ok().flatten()).or_else(|| w.primary_monitor().ok().flatten());
@@ -1323,7 +1330,7 @@ const SEARCH_MODS: tauri_plugin_global_shortcut::Modifiers = tauri_plugin_global
 
 fn on_hotkey(app: &AppHandle, sc: &tauri_plugin_global_shortcut::Shortcut) {
     use tauri_plugin_global_shortcut::Code;
-    if sc.matches(SEARCH_MODS, Code::Space) { return toggle_search(app); }
+    if sc.matches(SEARCH_MODS, Code::Space) { return open_search(app); }
     for (code, action, step) in [(Code::Space, "playpause", 0.0), (Code::ArrowRight, "next", 0.0), (Code::ArrowLeft, "prev", 0.0),
                                  (Code::ArrowUp, "volume_step", 0.1), (Code::ArrowDown, "volume_step", -0.1)] {
         if sc.matches(HOTKEY_MODS, code) {
