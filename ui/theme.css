@@ -1,0 +1,13 @@
+/* Colores y letra compartidos por el flotante, Configuración y Bienvenida. Tema oscuro por defecto; html.light = claro. */
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --accent: #ff3d6e; --accent-soft: #ff3d6e22;
+  --bg: #111216; --card: rgba(28, 28, 34, .96); --surface: #1b1b21; --surface2: #24242c; --hover: #ffffff12;
+  --line: #ffffff16; --text: #f3f3f6; --dim: #9d9daa; --track: #ffffff26;
+  --shadow: 0 8px 24px rgba(0, 0, 0, .45), 0 1px 0 rgba(255, 255, 255, .05) inset;
+}
+html.light {
+  --bg: #f2f2f5; --card: rgba(252, 252, 254, .97); --surface: #ffffff; --surface2: #f0f0f4; --hover: #0000000b;
+  --line: #00000014; --text: #18181d; --dim: #63636f; --track: #0000001f;
+  --shadow: 0 8px 24px rgba(40, 40, 80, .18);
+}

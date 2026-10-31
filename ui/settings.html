@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <title>Configuración</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
 <style>
-  :root { --bg:#0e0e13; --panel:#15151c; --line:#ffffff14; --text:#f2f2f6; --dim:#9a9aa8; --accent:#ff2d55; --hover:#1d1d27; }
+  :root { --panel: var(--surface); color-scheme: dark; } html.light { color-scheme: light; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
   body { display: flex; }
   nav { width: 200px; padding: 22px 12px; border-right: 1px solid var(--line); flex-shrink: 0; }
   nav h1 { font-size: 15px; margin: 0 10px 18px; letter-spacing: .3px; }
@@ -29,8 +31,8 @@
   /* interruptor */
   .sw { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
   .sw input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
-  .sw span { position: absolute; inset: 0; background: #2c2c38; border-radius: 99px; transition: background .15s; }
-  .sw span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .sw span { position: absolute; inset: 0; background: var(--track); border-radius: 99px; transition: background .15s; }
+  .sw span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0004; transition: transform .15s; }
   .sw input:checked + span { background: var(--accent); } .sw input:checked + span::after { transform: translateX(18px); }
   /* deslizador */
   .rng { display: flex; align-items: center; gap: 12px; width: 260px; }
@@ -42,15 +44,16 @@
   .num input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   /* botones */
   .btn { padding: 8px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--hover); color: var(--text); font: inherit; cursor: pointer; }
-  .btn:hover { border-color: #ffffff40; } .btn.pri { background: var(--accent); border-color: var(--accent); } .btn.danger { color: #ff7b8f; }
+  .btn:hover { border-color: var(--dim); } .btn.pri { background: var(--accent); border-color: var(--accent); color: #fff; } .btn.danger { color: #ff7b8f; }
   .btns { display: flex; gap: 8px; }
   /* aspecto */
   .skins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 16px 18px; }
   .skin { padding: 12px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; cursor: pointer; text-align: center; }
-  .skin:hover { border-color: #ffffff40; } .skin.on { border-color: var(--accent); background: #ff2d5518; }
-  .skin em { display: block; font-style: normal; font-size: 24px; line-height: 1.3; } .skin span { font-size: 12px; color: var(--dim); }
+  .skin:hover { border-color: var(--dim); } .skin.on { border-color: var(--accent); background: var(--accent-soft); }
+  .skin em { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 6px; border-radius: 11px; background: var(--sw, var(--surface2));
+            font-style: normal; font-size: 26px; box-shadow: inset 0 0 0 1px #ffffff1a; } .skin span { font-size: 12px; color: var(--dim); }
   .grp-title { padding: 12px 18px 0; color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .8px; }
-  #toast { position: fixed; right: 22px; bottom: 18px; padding: 8px 14px; border-radius: 10px; background: #22222d; border: 1px solid var(--line); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast { position: fixed; right: 22px; bottom: 18px; padding: 8px 14px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--line); opacity: 0; transition: opacity .2s; pointer-events: none; }
   #toast.on { opacity: 1; }
   @media (max-width: 720px) { .skins { grid-template-columns: repeat(3, 1fr); } .rng { width: 180px; } }
 </style>
@@ -67,16 +70,17 @@ const inv = (c, a) => window.__TAURI_INTERNALS__.invoke(c, a);
 let S = {}, META = {};
 
 const SKINS = [
-  ['dog', '🐶', 'Perro'], ['cat', '🐱', 'Gato'], ['cover', '🖼️', 'Carátula'], ['none', '▭', 'Sin imagen'],
-  ['trabajando', '💼', 'Trabajando'], ['programando', '💻', 'Programando'], ['tradeando', '📈', 'Tradeando'],
-  ['descansando', '😴', 'Descansando'], ['estudiando', '📚', 'Estudiando'], ['festejando', '🎉', 'Festejando'],
+  ['dog', '🐶', 'Perro', '#73b8ff,#3d6fd6'], ['cat', '🐱', 'Gato', '#ffa58f,#e8607e'], ['cover', '🖼️', 'Carátula'], ['none', '▭', 'Solo controles'],
+  ['trabajando', '💼', 'Trabajando', '#a9cdfb,#7199e0'], ['programando', '💻', 'Programando', '#2b3150,#171a2b'], ['tradeando', '📈', 'Tradeando', '#2f3550,#1a1d2e'],
+  ['descansando', '😴', 'Descansando', '#c3b3ff,#8f78e8'], ['estudiando', '📚', 'Estudiando', '#4a3a68,#2b2240'], ['festejando', '🎉', 'Festejando', '#ff8fbf,#7d5cff'],
 ];
 // Cada pestaña: grupos de ajustes. type: toggle | range | num | skins | button
 const TABS = [
   { id: 'float', icon: '🪟', name: 'Flotante', sub: 'Cómo se ve y dónde aparece el reproductor flotante.', groups: [
     [{ type: 'skins', key: 'skin' }],
     [
-      { type: 'range', key: 'scale', label: 'Tamaño', desc: 'También con la rueda del ratón sobre el flotante.', min: 0.4, max: 1.2, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
+      { type: 'choice', key: 'theme', label: 'Tema', desc: 'Oscuro, claro o igual que Windows. Se aplica al flotante y a esta ventana.', options: [['auto', 'Automático'], ['dark', 'Oscuro'], ['light', 'Claro']] },
+      { type: 'range', key: 'scale', label: 'Tamaño', desc: 'También con Ctrl + rueda del mouse sobre el flotante (la rueda sola cambia el volumen).', min: 0.7, max: 1.6, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'range', key: 'float_opacity', label: 'Opacidad', desc: 'Más bajo = más transparente.', min: 0.3, max: 1, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
       { type: 'toggle', key: 'float_on_top', label: 'Siempre encima', desc: 'Se mantiene por delante de otras ventanas.' },
       { type: 'toggle', key: 'float_at_start', label: 'Mostrar al iniciar la app', desc: 'Si lo apagas, se abre oculto y lo muestras desde la bandeja.' },
@@ -106,18 +110,19 @@ const TABS = [
       { type: 'num', key: 'pomo_focus_min', label: 'Estudio', unit: 'min', min: 1, max: 180 },
       { type: 'num', key: 'pomo_rest_min', label: 'Descanso', unit: 'min', min: 1, max: 60 },
       { type: 'button', label: 'Temporizador', desc: 'Cambia el flotante a "Estudiando" y a "Descansando" según la fase.', buttons: [['Iniciar', 'pomo_start', 'pri'], ['Detener', 'pomo_stop']] },
+      { type: 'button', label: 'Temporizador para dormir', desc: 'Pausa la música cuando termina. También en la bandeja y en el menú ⏾ Dormir.', buttons: [['15 min', 'sleep15'], ['30 min', 'sleep30'], ['1 hora', 'sleep60'], ['Cancelar', 'sleep0']] },
     ] ] },
   { id: 'sys', icon: '⚙️', name: 'Sistema', sub: 'Inicio, ventana y actualizaciones.', groups: [
     [
       { type: 'toggle', key: 'autostart', label: 'Iniciar con Windows', desc: 'Arranca minimizada en la bandeja.' },
       { type: 'choice', key: 'source', label: 'Servicio de música', desc: 'También desde la bandeja. Spotify se abre en la misma ventana; inicia sesión con tu cuenta de Spotify o con "Continuar con Google" (la misma cuenta de YouTube).', options: [['ytm', 'YouTube Music'], ['spotify', 'Spotify']] },
       { type: 'toggle', key: 'close_to_tray', label: 'Cerrar a la bandeja', desc: 'Al cerrar la ventana la música sigue sonando. Si lo apagas, cerrar sale de la app.' },
+      { type: 'toggle', key: 'notify_song', label: 'Avisar al cambiar de canción', desc: 'Una notificación de Windows con la canción nueva (no aparece si estás mirando la ventana).' },
+      { type: 'info', label: 'Atajos de teclado', desc: 'Ctrl+Alt+Mayús + Espacio: reproducir / pausar · → siguiente · ← anterior · ↑ ↓ volumen. Las teclas multimedia del teclado también funcionan. Clic del medio en el ícono de la bandeja: reproducir / pausar.' },
     ],
     [
       { type: 'toggle', key: 'idle_webview', label: 'Ahorro de memoria con la ventana oculta', desc: 'Pide a WebView2 que libere memoria mientras la ventana está en la bandeja.' },
       { type: 'toggle', key: 'idle_hide_ui', label: 'No dibujar la interfaz de la página al ocultarla', desc: 'La música sigue sonando. Apágalo si algo no responde al volver.' },
-      { type: 'toggle', key: 'suspend_idle', label: 'Congelar la página cuando no suena nada', desc: 'Con la ventana oculta y la música en pausa, la página se suspende por completo (casi 0 % de CPU). Se reactiva sola al mostrar la ventana o usar los controles del flotante o de la bandeja. Las teclas multimedia no la despiertan.' },
-      { type: 'num', key: 'suspend_after_s', label: 'Congelar tras', unit: 's', min: 30, max: 1800, dep: 'suspend_idle' },
       { type: 'toggle', key: 'destroy_float', label: 'Liberar el flotante cuando está oculto', desc: 'Se cierra su proceso (unos 25 MB) y reaparece en un instante al mostrarlo.' },
     ],
     [
@@ -132,20 +137,21 @@ const TABS = [
 const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content.firstChild; };
 let toastT;
 const toast = (m = 'Guardado') => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1200); };
-async function set(key, value) { S[key] = value; await inv('set_setting', { key, value }); toast(); }
+async function set(key, value) { S[key] = value; if (key === 'theme') applyTheme(value); await inv('set_setting', { key, value }); toast(); }
 async function act(a) {
   if (a.startsWith('link:')) return inv('open_link', { which: a.slice(5) });
   if (a === 'reset_settings' && !confirm('¿Restablecer todos los ajustes?')) return;
   await inv('settings_action', { action: a });
-  toast(a === 'check_update' ? 'Buscando… (si hay una nueva, aparece arriba en la ventana)' : a === 'pomo_start' ? 'Pomodoro iniciado' : a === 'pomo_stop' ? 'Pomodoro detenido' : 'Listo');
+  toast(a === 'check_update' ? 'Buscando… (si hay una nueva, aparece arriba en la ventana)' : a === 'pomo_start' ? 'Pomodoro iniciado' : a === 'pomo_stop' ? 'Pomodoro detenido' : a === 'sleep0' ? 'Temporizador cancelado' : a.startsWith('sleep') ? 'La música se pausará en ' + a.slice(5) + ' min' : 'Listo');
   if (a === 'reset_settings') await load();
 }
 
 function row(it) {
   if (it.type === 'skins') {
     const w = $('<div class="skins"></div>');
-    SKINS.forEach(([id, ic, nm]) => {
+    SKINS.forEach(([id, ic, nm, g]) => {
       const b = $(`<button class="skin${S.skin === id ? ' on' : ''}"><em>${ic}</em><span>${nm}</span></button>`);
+      if (g) b.firstChild.style.setProperty('--sw', `linear-gradient(160deg,${g})`);   // por JS: la CSP bloquea style="..." en el HTML
       b.onclick = () => { set('skin', id); w.querySelectorAll('.skin').forEach(x => x.classList.remove('on')); b.classList.add('on'); };
       w.append(b);
     });
@@ -204,6 +210,7 @@ function buildTabs() {
 async function load(keep) {
   const v = await inv('get_settings');
   S = { ...v.settings, autostart: v.autostart }; META = { version: v.version };
+  applyTheme(S.theme);
   if (!keep) buildTabs();
   render();
 }

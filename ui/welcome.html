@@ -1,24 +1,26 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>Lite Music</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
-body{background:radial-gradient(1200px 600px at 50% -10%,#2b2160 0%,#14141f 60%);color:#eceaf7;font-family:"Segoe UI",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;user-select:none}
-.logo{width:92px;height:92px;border-radius:22px;box-shadow:0 10px 40px #7c4dff55}
-h1{margin:6px 0 0;font-size:26px;letter-spacing:.2px}
-p.sub{margin:0;color:#a6a3bd;font-size:14px}
+body{background:radial-gradient(900px 480px at 50% -12%,var(--accent-soft),transparent 65%),var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;user-select:none}
+.logo{width:88px;height:88px;border-radius:22px;box-shadow:var(--shadow)}
+h1{margin:6px 0 0;font-size:26px;letter-spacing:-.2px}
+p.sub{margin:0;color:var(--dim);font-size:14px}
 .cards{display:flex;gap:16px;margin-top:10px}
-.card{width:240px;padding:24px 14px 18px;border-radius:16px;text-align:center;background:#1e1e2f;border:2px solid #ffffff12;cursor:pointer;transition:transform .12s,border-color .12s;font:inherit;color:inherit}
+.card{width:240px;padding:24px 14px 18px;border-radius:16px;text-align:center;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);cursor:pointer;transition:transform .12s,border-color .12s;font:inherit;color:inherit}
 .card:hover{transform:translateY(-3px)}
 .card.y:hover{border-color:#ff3d57}.card.s:hover{border-color:#1ed760}
 .card svg{width:44px;height:44px;margin-bottom:10px}
-.card b{display:block;font-size:17px}.card small{display:block;color:#a6a3bd;margin:4px 0 14px;font-size:12px;min-height:30px}
+.card b{display:block;font-size:17px}.card small{display:block;color:var(--dim);margin:4px 0 14px;font-size:12px;min-height:30px}
 .go{display:block;padding:9px 0;border-radius:22px;font-size:13px;font-weight:600}
 .y .go{background:#ff0033;color:#fff}.s .go{background:#1db954;color:#06130a}
-.note{font-size:12px;color:#7d7a96;margin-top:2px}
-.me{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #ffffff14;width:100%;max-width:496px;justify-content:center;font-size:13px;color:#a6a3bd}
-.me a{display:flex;align-items:center;gap:8px;color:#eceaf7;text-decoration:none;padding:7px 14px;border-radius:20px;background:#ffffff0f;cursor:pointer}
-.me a:hover{background:#ffffff1f}
+.note{font-size:12px;color:var(--dim);margin-top:2px}
+.me{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);width:100%;max-width:496px;justify-content:center;font-size:13px;color:var(--dim)}
+.me a{display:flex;align-items:center;gap:8px;color:var(--text);text-decoration:none;padding:7px 14px;border-radius:20px;background:var(--hover);cursor:pointer}
+.me a:hover{background:var(--line)}
 .me svg{width:18px;height:18px;fill:currentColor}
 </style></head><body>
 <img class="logo" src="logo.png" alt="">
@@ -34,6 +36,7 @@ p.sub{margin:0;color:#a6a3bd;font-size:14px}
   <a data-l="linkedin"><svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>LinkedIn</a></div>
 <script>
 const inv = (c, a) => window.__TAURI_INTERNALS__.invoke(c, a);
+applyTheme('auto');
 document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => inv('choose_source', { source: b.dataset.s }));
 document.querySelectorAll('[data-l]').forEach(a => a.onclick = () => inv('open_link', { which: a.dataset.l }));
 </script></body></html>
