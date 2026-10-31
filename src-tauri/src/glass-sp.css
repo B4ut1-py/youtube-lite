@@ -275,3 +275,5 @@ html.lm-light [data-testid="now-playing-bar"] button:not([aria-pressed="true"]):
 html.lm-light [data-testid="now-playing-bar"] button:not([aria-pressed="true"]):not([data-active="true"]):not([data-testid="control-button-playpause"]):hover { color: var(--g-text) !important; }
 /* progreso y volumen en claro: pista y relleno oscuros (Spotify los fija en blanco) */
 html.lm-light [data-testid="now-playing-bar"] [data-testid="progress-bar"] * { --bg-color: rgba(30, 40, 70, .18); --fg-color: #3d4357; }
+/* franja cerrada: 8px de aire con el borde derecho de la ventana y 8px con el panel central */
+div:has(> button[aria-label="Mostrar la vista Sonando"]) { width: 32px !important; }

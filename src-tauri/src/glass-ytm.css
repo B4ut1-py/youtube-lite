@@ -85,10 +85,10 @@ html.lm-light ytmusic-immersive-header-renderer ytmusic-fullbleed-thumbnail-rend
 ytmusic-browse-response .background-gradient { background: none !important; }
 
 /* receta del vidrio: relleno translúcido + desenfoque + canto iluminado (borde con degradé) + sombra */
-#guide-wrapper::before, #player-bar-background {
+#guide-wrapper::before, #mini-guide-renderer::before, #player-bar-background {
   background: var(--g-panel) !important;
   box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow) !important; }
-#guide-wrapper::after, #player-bar-background::after {
+#guide-wrapper::after, #mini-guide-renderer::after, #player-bar-background::after {
   content: ""; position: absolute; pointer-events: none; padding: 1px; background: var(--g-edge);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 
@@ -99,14 +99,27 @@ ytmusic-browse-response .background-gradient { background: none !important; }
 #nav-bar-divider { display: none !important; }
 /* menú lateral: panel de vidrio flotante con esquinas grandes */
 #guide-wrapper { border: 0 !important; box-shadow: none !important; }
-#guide-wrapper::before, #guide-wrapper::after { top: 0; left: 0; width: calc(100% - 1px); height: calc(100vh - 72px - 12px); border-radius: 24px; }
+/* panel flotante: 8px de aire a la izquierda, arriba y abajo (si hay reproductor, 8px sobre la cápsula); radio 22 como la cápsula */
+#guide-wrapper::before, #guide-wrapper::after { top: 8px; left: 8px; width: 100%; height: calc(100vh - 16px); border-radius: 22px; }
+ytmusic-app-layout[player-visible] #guide-wrapper::before, ytmusic-app-layout[player-visible] #guide-wrapper::after { height: calc(100vh - 24px - var(--ytmusic-player-bar-height)); }
+/* menú mini: mismo panel, 72px de ancho */
+#mini-guide-renderer::before, #mini-guide-renderer::after { top: 8px; left: 8px; width: 72px; height: calc(100vh - 16px); border-radius: 22px; position: fixed; }
+#mini-guide-renderer::before { content: ""; z-index: -1; }
+ytmusic-app-layout[player-visible] #mini-guide-renderer::before, ytmusic-app-layout[player-visible] #mini-guide-renderer::after { height: calc(100vh - 24px - var(--ytmusic-player-bar-height)); }
+ytmusic-guide-renderer { margin-left: 8px; }   /* las entradas siguen centradas dentro del panel desplazado */
 #guide-wrapper::before { content: ""; position: absolute; z-index: -1; }
 #guide-wrapper #divider, ytmusic-guide-section-renderer #divider { border-color: var(--g-div) !important; }
 /* reproductor: cápsula de vidrio flotante */
 ytmusic-player-bar { background: transparent !important; }
 /* sin desenfoque en vivo: medido, al desplazar costaba +1,2% de CPU; un vidrio casi opaco se ve igual de limpio */
-#player-bar-background { background: var(--g-bar) !important; border-radius: 0; }   /* tamaño y posición originales: la línea y el knob de progreso viven en su borde de arriba, así que sin esquinas */
+/* cápsula flotante: 8px de aire a izquierda, derecha y abajo, radio 22; la línea de tiempo vive adentro (ver sección 5) */
+#player-bar-background, ytmusic-app-layout > [slot="player-bar"] { left: 8px !important; right: 8px !important; bottom: 8px !important; width: auto !important; }
+#player-bar-background { background: var(--g-bar) !important; border-radius: 22px !important; }
 #player-bar-background::after { inset: 0; border-radius: inherit; }
+/* el contenido no queda debajo de la cápsula: se suman los 8px de aire */
+ytmusic-app-layout:not([is-contained-content-layout-enabled])[player-visible] > #content { margin-bottom: calc(var(--ytmusic-player-bar-height) + 8px); }
+ytmusic-app-layout[is-contained-content-layout-enabled][player-visible] > #content { height: calc(100dvh - var(--ytmusic-player-bar-height) - 8px); }
+ytmusic-app-layout:not([is-mweb-modernization-enabled]) > [slot="player-page"] { height: calc(100vh - var(--ytmusic-nav-bar-height) - var(--ytmusic-player-bar-height) - 8px); }
 /* velo desenfocado al pie: lo que pasa por debajo de la cápsula se funde en vez de asomarse */
 ytmusic-app-layout::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 3; pointer-events: none;
   background: linear-gradient(transparent, var(--g-veil));
@@ -156,6 +169,11 @@ ytmusic-player-bar .thumbnail-image-wrapper, ytmusic-player-bar .image { border-
 #progress-bar #primaryProgress, #volume-slider #primaryProgress { background: linear-gradient(90deg, #ff8aac, var(--g-accent)) !important; }
 #progress-bar #primaryProgress { box-shadow: 0 0 10px rgba(255, 61, 110, .6); }
 #progress-bar #progressContainer { background: var(--g-track) !important; }
+/* línea de tiempo dentro de la cápsula: 24px de margen parejo a los lados y 12px bajo el borde de arriba, lejos de las esquinas; al engordar sigue adentro */
+ytmusic-player-bar #progress-bar { left: 24px !important; right: 24px !important; width: auto !important; top: 13px !important; }
+ytmusic-player-bar #progress-bar #sliderContainer { margin: 0 !important; width: 100% !important; }
+ytmusic-player-bar #progress-bar .bar-container { left: 0 !important; right: 0 !important; }
+#progress-bar #primaryProgress, #progress-bar #progressContainer, #progress-bar #secondaryProgress { border-radius: 999px; }
 #progress-bar .slider-knob-inner, #volume-slider .slider-knob-inner { background: #fff !important; border-color: #fff !important;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, .2), 0 1px 6px rgba(0, 0, 0, .3); }
 
