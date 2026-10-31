@@ -117,6 +117,16 @@
   body.fmt-mini #prev, body.fmt-mini #next { width: 24px; height: 24px; } body.fmt-mini .b svg { width: 15px; height: 15px; }
   body.fmt-mini #pp { width: 28px; height: 28px; }
   body.fmt-mini:not(:hover) #prev, body.fmt-mini:not(:hover) #next { display: none; }   /* aparecen al pasar el mouse */
+  /* lupa arriba a la derecha, solo en el formato normal; el corazón va al final de la fila de controles */
+  #find { width: 24px; height: 24px; margin: -2px -4px 0 0; } #find svg { width: 16px; height: 16px; }
+  body:not(.fmt-normal) #find { display: none; }
+  body.fmt-normal .ctr { justify-content: flex-start; }
+  .ctr #like { margin: 0 0 0 auto; }
+  /* Cristal con el fondo de la app (opcional): el mismo degradé fijo que YouTube Music, Spotify y las ventanas */
+  html.appbg #art img { display: none; }
+  html.appbg #art { background: radial-gradient(70% 60% at 12% 8%, color-mix(in srgb, var(--lm-tint) 70%, #fff), transparent 70%),
+    radial-gradient(60% 70% at 92% 92%, color-mix(in srgb, var(--lm-tint) 65%, #000), transparent 72%),
+    linear-gradient(160deg, color-mix(in srgb, var(--lm-tint) 88%, #fff), color-mix(in srgb, var(--lm-tint) 80%, #000)); }
 </style>
 </head>
 <body>
@@ -133,13 +143,14 @@
   <div class="info">
     <div class="head">
       <div class="txt"><div id="title"><span>Lite Music</span></div><div id="artist"></div></div>
-      <button class="b" id="like" title="Me gusta"><svg viewBox="0 0 24 24" id="likei"></svg></button>
+      <button class="b" id="find" title="Buscar (Ctrl + Shift + Espacio)"><svg viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 0 1 5.2 10.4l4.3 4.3-1.4 1.4-4.3-4.3A6.5 6.5 0 1 1 10.5 4zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z"/></svg></button>
     </div>
     <div class="prog"><span id="tcur">0:00</span><div id="bar"><div id="fill"></div></div><span id="tdur">0:00</span></div>
     <div class="ctr">
       <button class="b" id="prev" title="Anterior"><svg viewBox="0 0 24 24"><path d="M6 5h2.2v14H6zM20 5v14L9.5 12z"/></svg></button>
       <button class="b" id="pp" title="Reproducir"><svg viewBox="0 0 24 24" id="ppi"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
       <button class="b" id="next" title="Siguiente"><svg viewBox="0 0 24 24"><path d="M15.8 5H18v14h-2.2zM4 5l10.5 7L4 19z"/></svg></button>
+      <button class="b" id="like" title="Me gusta"><svg viewBox="0 0 24 24" id="likei"></svg></button>
     </div>
   </div>
   <div id="vcol" title="Volumen (también con la rueda del mouse)">
@@ -290,7 +301,7 @@ function drawRoom(skin) {
 
 /* ---------- Estado ---------- */
 let CFG = { blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90, mood_min_s: 15, mood_max_s: 30, float_opacity: 1, theme: 'auto' };
-let glass = '', format = '', skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
+let glass = '', appBg = 'null', format = '', skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
 const ICON = {
   play: '<path d="M8 5.5v13l10.5-6.5z"/>', pause: '<path d="M7 5h3.6v14H7zm6.4 0H17v14h-3.6z"/>',
   heart: '<path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.6 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.5 3.1 4.3 6.3C19.5 15.4 12 20 12 20z"/>',
@@ -305,6 +316,12 @@ function render(st) {
     if (CFG.glass !== glass) {                                     // "art": vidrio sobre la carátula; "screen": transparente sobre la pantalla
       glass = CFG.glass; const r = document.documentElement;
       r.classList.toggle('glass', glass === 'art' || glass === 'screen'); r.classList.toggle('screen', glass === 'screen');
+    }
+    const ab = CFG.float_app_bg && CFG.glass === 'art' && st.glass ? st.glass : null, abKey = JSON.stringify(ab);
+    if (abKey !== appBg) {                                         // fondo de la app en lugar de la carátula: su color y su tono (claro u oscuro)
+      appBg = abKey; const r = document.documentElement;
+      r.classList.toggle('appbg', !!ab); if (ab) r.style.setProperty('--lm-tint', ab.tint);
+      applyTone(ab ? ab.tone : null);
     }
     if (CFG.format !== format) {                                   // el ultra compacto muestra siempre la carátula: se vuelve a elegir el aspecto
       format = CFG.format || 'normal'; skin = ''; shownTitle = null;
@@ -541,6 +558,7 @@ window.addEventListener('mouseup', () => { draggingVol = false; lv = null; });
 $('prev').onclick = () => { trigger('prev'); inv('control', { action: 'prev' }); };
 $('next').onclick = () => { trigger('next'); inv('control', { action: 'next' }); };
 $('like').onclick = () => inv('control', { action: 'like' });
+$('find').onclick = () => inv('control', { action: 'search' });
 $('bar').onclick = (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   inv('control', { action: 'seek', value: (e.clientX - r.left) / r.width });

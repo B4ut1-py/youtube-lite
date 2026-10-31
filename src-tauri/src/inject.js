@@ -264,5 +264,92 @@
   const kick = (ms = 250) => { clearTimeout(timer); timer = setTimeout(tick, ms); };
   ['play', 'pause', 'ended', 'loadedmetadata', 'emptied'].forEach((ev) => document.addEventListener(ev, () => kick(), true));
   window.__lm.kick = kick;
+
+  // Búsqueda rápida (ventana "search"): devuelve { title, kind, sub, dur, img, round, open } y reproduce por número.
+  // YouTube Music usa su API interna de búsqueda; Spotify, su propia página de búsqueda dentro de la app.
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const KINDS = /^(canción|video|vídeo|vídeo musical|artista|álbum|ep|sencillo|single|lista|playlist|episodio|pódcast|podcast|perfil)$/i;
+  const YTM_FILTER = { songs: 'EgWKAQIIAWoMEA4QChADEAQQCRAF', albums: 'EgWKAQIYAWoMEA4QChADEAQQCRAF', artists: 'EgWKAQIgAWoMEA4QChADEAQQCRAF', playlists: 'EgeKAQQoAEABagwQDhAKEAMQBBAJEAU=' };
+  const KIND_NAME = { songs: 'Canción', albums: 'Álbum', artists: 'Artista', playlists: 'Lista' };
+  let found = [];
+  const ytmSearch = async (q, kind) => {
+    const body = { context: window.ytcfg.get('INNERTUBE_CONTEXT'), query: q };
+    if (YTM_FILTER[kind]) body.params = YTM_FILTER[kind];
+    const j = await (await fetch('/youtubei/v1/search?prettyPrint=false', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json();
+    const text = (t) => (t?.runs || []).map((r) => r.text).join('');
+    const out = [];
+    const walk = (o) => {
+      if (!o || typeof o !== 'object' || out.length >= 12) return;
+      const m = o.musicResponsiveListItemRenderer;
+      if (!m) { for (const k in o) walk(o[k]); return; }
+      const cols = (m.flexColumns || []).map((c) => c.musicResponsiveListItemFlexColumnRenderer?.text);
+      const fixed = (m.fixedColumns || []).map((c) => text(c.musicResponsiveListItemFixedColumnRenderer?.text));
+      const parts = text(cols[1]).split(/\s*•\s*/).filter(Boolean);
+      const dur = [...parts, ...fixed].find((p) => /^\d+:\d\d(:\d\d)?$/.test(p)) || '';
+      const play = m.overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint || cols[0]?.runs?.[0]?.navigationEndpoint;
+      const ep = play?.watchEndpoint || play?.watchPlaylistEndpoint ? play : m.navigationEndpoint;
+      if (!ep) return;
+      const th = m.thumbnail?.musicThumbnailRenderer;
+      const k = KINDS.test(parts[0] || '') ? parts.shift() : KIND_NAME[kind] || '';
+      out.push({ title: text(cols[0]), kind: k, sub: parts.filter((p) => p !== dur).join(' · ') || text(cols[2]), dur, img: th?.thumbnail?.thumbnails?.at(-1)?.url || '',
+        round: /CIRCLE/.test(th?.thumbnailCrop || ''), open: !(ep.watchEndpoint || ep.watchPlaylistEndpoint), ep });
+    };
+    walk(j.contents);
+    return out;
+  };
+  const ytmPlay = (it) => document.querySelector('ytmusic-app')?.dispatchEvent(new CustomEvent('yt-navigate', { bubbles: true, composed: true, detail: { endpoint: it.ep } }));
+  const SP_PATH = { songs: '/tracks', albums: '/albums', artists: '/artists', playlists: '/playlists' };
+  const spGo = (path) => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate', { state: {} })); };
+  // resultados: filas (Todo), filas de canciones (Canciones) o tarjetas con su botón de play (Álbumes, Artistas, Listas)
+  const spNodes = () => {
+    const rows = [...document.querySelectorAll('#main-view [data-encore-id="listRow"], #main-view [data-testid="tracklist-row"]')];
+    if (rows.length) return rows;
+    return [...document.querySelectorAll('#main-view [data-encore-id="cardTitle"]')].map((t) => {
+      let c = t; while (c && !c.querySelector('[data-testid="play-button"]')) c = c.parentElement;
+      return c;
+    }).filter(Boolean);
+  };
+  const spHref = (n) => (n.querySelector('[data-testid="title"] a, a[href*="/track/"], [data-encore-id="cardTitle"] a') || n.querySelector('a[href]') || n.closest('a[href]'))?.getAttribute('href') || '';
+  const spItem = (n, kind) => {
+    const href = spHref(n), img = n.querySelector('[data-testid="entity-image"], [data-testid="card-image"] img, img[data-testid="card-image"], img');
+    const base = { href, img: img?.currentSrc || img?.getAttribute('src') || '', round: /\/artist\//.test(href), open: false, dur: '' };
+    if (n.matches('[data-testid="tracklist-row"]')) {
+      return { ...base, title: n.querySelector('a[href*="/track/"]')?.textContent || '', kind: 'Canción',
+        sub: [...n.querySelectorAll('a[href*="/artist/"]')].map((a) => a.textContent).join(', '), dur: (n.innerText.match(/\d+:\d\d/g) || []).pop() || '' };
+    }
+    const ct = n.querySelector('[data-encore-id="cardTitle"]');
+    if (ct) return { ...base, title: ct.textContent, kind: KIND_NAME[kind] || '', sub: n.querySelector('[data-encore-id="cardSubtitle"]')?.textContent || '' };
+    const sub = [...(n.querySelector('[data-testid="subtitle"] span')?.children || [])].map((x) => x.textContent.trim()).filter(Boolean);
+    const k = KINDS.test(sub[0] || '') ? sub.shift() : KIND_NAME[kind] || '';
+    return { ...base, title: n.querySelector('[data-testid="title"] a')?.textContent || '', kind: k, sub: sub.join(', ') };
+  };
+  const spSearch = async (q, kind) => {
+    const path = '/search/' + encodeURIComponent(q) + (SP_PATH[kind] || '');
+    const here = location.pathname.replace(/^\/intl-[^/]+/, '') === path;
+    const old = spNodes()[0];
+    if (!here) spGo(path);
+    let nodes = spNodes();
+    for (let i = 0; i < 50 && !(nodes.length && (here || nodes[0] !== old)); i++) { await wait(120); nodes = spNodes(); }
+    return nodes.slice(0, 12).map((n) => spItem(n, kind));
+  };
+  const spPlay = async (it) => {
+    const n = spNodes().find((x) => spHref(x) === it.href);
+    if (n && !it.round) {                                       // canción o lista: doble clic en la fila o el play de la tarjeta, como en Spotify
+      const b = n.querySelector('[data-testid="play-button"]');
+      return b ? b.click() : n.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    }
+    spGo(it.href.replace(/^\/intl-[^/]+/, ''));                // artista (o la lista cambió): abrir su página y tocar su play
+    for (let i = 0; i < 40; i++) {
+      await wait(150);
+      const b = document.querySelector('#main-view [data-testid="action-bar-row"] [data-testid="play-button"]');
+      if (b) return b.click();
+    }
+  };
+  window.__lm.search = async (q, kind, seq) => {
+    let items = [], error = '';
+    try { found = await (SP ? spSearch : ytmSearch)(q, kind); items = found.map(({ ep, ...x }) => x); } catch (e) { error = String(e); }
+    invoke && invoke('search_results', { seq, items, error }).catch(() => {});
+  };
+  window.__lm.searchPlay = (i) => { const it = found[i]; if (it) (SP ? spPlay : ytmPlay)(it); };
   tick();
 })();

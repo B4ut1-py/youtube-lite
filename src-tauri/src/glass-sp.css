@@ -8,7 +8,7 @@
   --g-panel: rgba(28, 28, 36, .30); --g-fill: rgba(255, 255, 255, .08); --g-fill-2: rgba(255, 255, 255, .14);
   --g-rim: rgba(255, 255, 255, .32); --g-rim-2: rgba(255, 255, 255, .07);
   --g-shadow: 0 2px 6px rgba(0, 0, 0, .3);   /* corto: los paneles están a 8px unos de otros y cada contenedor recorta lo que se pasa */
-  --g-layer: rgba(36, 36, 46, .86); --g-layer-shadow: 0 16px 40px rgba(0, 0, 0, .4);   /* capas que flotan (menús, desplegables, diálogos, avisos): casi opacas */
+  --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #000) 93%, transparent); --g-layer-shadow: 0 16px 40px rgba(0, 0, 0, .4);   /* capas que flotan (menús, desplegables, diálogos, avisos): casi opacas */
   --g-head: rgba(16, 16, 24, .88); --g-hl: rgba(255, 255, 255, .08); --g-press: rgba(255, 255, 255, .04);
   --g-solid: color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #1c1c24); --g-text: #fff; --g-text-2: rgba(255, 255, 255, .72); --g-accent: #539df5; --g-scroll: rgba(255, 255, 255, .22); --g-card-shadow: rgba(0, 0, 0, .3);
 }
@@ -17,7 +17,7 @@ html.lm-light {
   --g-panel: rgba(255, 255, 255, .42); --g-fill: rgba(255, 255, 255, .5); --g-fill-2: rgba(255, 255, 255, .78);
   --g-rim: rgba(255, 255, 255, .95); --g-rim-2: rgba(30, 40, 70, .1);
   --g-shadow: 0 2px 6px rgba(30, 40, 70, .16);
-  --g-layer: rgba(250, 251, 255, .9); --g-layer-shadow: 0 14px 36px rgba(30, 40, 70, .22);
+  --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 94%, transparent); --g-layer-shadow: 0 14px 36px rgba(30, 40, 70, .22);
   --g-head: rgba(246, 248, 253, .92); --g-hl: rgba(30, 40, 70, .07); --g-press: rgba(30, 40, 70, .12);
   --g-solid: color-mix(in srgb, var(--lm-tint, #dfe3ee) 60%, #fff); --g-text: #15171f; --g-text-2: #4a5064; --g-accent: #0b5cc8; --g-scroll: rgba(30, 40, 70, .28); --g-card-shadow: rgba(30, 40, 70, .2);
 }
@@ -156,7 +156,7 @@ div:has(> img[data-testid="entity-image"]), div:has(> img[data-testid="cover-art
 /* Artista: el fondo sólido detrás de populares/discografía se vuelve casi transparente */
 [data-testid="overscroll-background"] { opacity: .35 !important; }
 
-/* 40-capas: cola, letra, vista ampliada, menus, dialogos, tooltips, avisos */
+/* 40-capas: cola, letra, vista ampliada, menus, dialogos, avisos (los tooltips quedan como el original) */
 
 /* Menus contextuales (capa pasajera: backdrop-filter permitido) */
 [role=menu] {
@@ -175,14 +175,6 @@ div:has(> img[data-testid="entity-image"]), div:has(> img[data-testid="cover-art
   -webkit-backdrop-filter: blur(28px) saturate(1.5); backdrop-filter: blur(28px) saturate(1.5);
   border-radius: 24px !important; overflow: clip;
   box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow) !important; }
-
-/* Tooltips */
-[role=tooltip], [data-tippy-root] [data-testid=tooltip], [data-tippy-root] > [data-state] {
-  border-radius: 10px !important; }
-[role=tooltip] {
-  background: var(--g-layer) !important;
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 6px 18px rgba(0, 0, 0, .25) !important; }
 
 
 /* Cola y panel derecho en modo cola: filas */

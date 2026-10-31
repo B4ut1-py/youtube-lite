@@ -61,7 +61,7 @@ html.lm-light:root {
   --yt-endpoint-color: #14161f; --yt-endpoint-hover-color: #14161f; --yt-compact-link-color: #14161f; --yt-compact-link-icon-color: #14161f;
   --yt-compact-link-title-color: #14161f; --yt-compact-link-subtitle-color: rgba(20, 22, 31, .72);
   --iron-icon-fill-color: #14161f; --paper-icon-button-ink-color: #14161f; --paper-item-icon-color: #14161f;
-  --paper-listbox-color: #14161f; --paper-tooltip-text-color: #14161f; --paper-toast-color: #14161f;
+  --paper-listbox-color: #14161f; --paper-toast-color: #14161f;
   color-scheme: light; }
 
 /* ---------- 1. Fondo fijo (oscuro, claro o color elegido) ---------- */
@@ -291,7 +291,7 @@ ytmusic-player-page ytmusic-description-shelf-renderer,
 ytmusic-player-page ytmusic-carousel-shelf-renderer ytmusic-two-row-item-renderer { border-radius: 12px; }
 ytmusic-player-page ytmusic-two-row-item-renderer img, ytmusic-player-page ytmusic-two-row-item-renderer yt-img-shadow { border-radius: 12px; overflow: clip; }
 
-/* ---- Capas pasajeras: menús (cuenta, de tres puntos), desplegables, diálogos, avisos y tooltips ----
+/* ---- Capas pasajeras: menús (cuenta, de tres puntos), desplegables, diálogos y avisos (los tooltips quedan como el original) ----
    Todas comparten el mismo vidrio: relleno --g-layer (casi opaco, con el tono del fondo), desenfoque, canto de luz, radio 20px y sombra del mismo radio. */
 ytmusic-multi-page-menu-renderer, ytmusic-menu-popup-renderer, ytmusic-popup-container tp-yt-paper-dialog, tp-yt-paper-dialog.ytmusic-popup-container,
 tp-yt-iron-dropdown tp-yt-paper-listbox, ytmusic-dropdown-renderer tp-yt-paper-listbox {
@@ -326,12 +326,6 @@ tp-yt-paper-toast, ytmusic-notification-action-renderer, yt-notification-action-
   background: var(--g-layer) !important; color: var(--g-text) !important; border-radius: 18px !important; overflow: clip;
   -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
   box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow) !important; }
-
-/* ---- Tooltips ---- */
-tp-yt-paper-tooltip #tooltip {
-  background: var(--g-layer) !important; color: var(--g-text) !important; border-radius: 12px;
-  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-layer-shadow); }
 
 html.lm-light ytmusic-logo img.logo { filter: invert(1) hue-rotate(190deg) saturate(3) brightness(.85); }   /* texto blanco del logo a oscuro, ícono rojo (medido 217,10,21) */
 /* pestañas del reproductor expandido (A continuación / Letra / Relacionado): traen blanco fijo */

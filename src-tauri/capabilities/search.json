@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "search-window",
+  "description": "Búsqueda rápida: buscar, reproducir un resultado, cerrarse y leer el tema.",
+  "windows": ["search"],
+  "permissions": ["allow-search", "allow-search-play", "allow-search-hide", "allow-get-settings"]
+}

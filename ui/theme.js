@@ -6,6 +6,8 @@ const mq = matchMedia('(prefers-color-scheme: dark)');
 const setLight = () => document.documentElement.classList.toggle('light', glassTone ? glassTone === 'light' : theme === 'light' || (theme !== 'dark' && !mq.matches));
 mq.onchange = setLight;
 window.applyTheme = (t) => { theme = t; setLight(); };
+// tono forzado ('dark' | 'light') o null para volver al tema; lo usa el flotante cuando toma el fondo de la app
+window.applyTone = (t) => { glassTone = t; setLight(); };
 // Cristal: g = null (apagado) o { tone, tint } (ver glass_spec en main.rs). Pone html.glass y el fondo fijo (#lm-art).
 window.applyGlass = (g) => {
   const r = document.documentElement;
