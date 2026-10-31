@@ -1,0 +1,71 @@
+/* Cristal: páginas y detalle (sp). Se aplica después de glass-sp.css: acá van los ajustes de cada página. */
+
+/* Pie de página (Empresa, Comunidades, Planes…): era un bloque negro opaco; ahora deja ver el vidrio del panel */
+[data-testid="footer-div"] { background: transparent !important; }
+[data-testid="footer-div"] hr { background: var(--g-rim-2) !important; border: 0 !important; }
+/* redes sociales: botones redondos de vidrio */
+[data-testid="footer-div"] a[class*="legacy-button"] { background: var(--g-fill) !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2) !important; }
+[data-testid="footer-div"] a[class*="legacy-button"]:hover { background: var(--g-fill-2) !important; }
+
+/* Banners dentro de las páginas (aviso azul plano): vidrio con acento azul suave en el borde; mismo radio y canto que las capas */
+[data-encore-id="banner"][data-encore-id] {
+  --background-base: transparent; --text-base: #fff; --text-subdued: rgba(255, 255, 255, .72); --essential-base: #fff; --essential-subdued: rgba(255, 255, 255, .72);
+  background: color-mix(in srgb, #2a8cff 22%, color-mix(in srgb, var(--lm-tint, #262a3d) 92%, #000)) !important; border-radius: 16px !important;
+  box-shadow: inset 0 0 0 1px rgba(90, 170, 255, .5), inset 0 1px 0 var(--g-rim), 0 10px 28px rgba(0, 0, 0, .22) !important; }
+html.lm-light [data-encore-id="banner"][data-encore-id] {
+  --text-base: #121212; --text-subdued: #3d4350; --essential-base: #121212; --essential-subdued: #3d4350;
+  background: color-mix(in srgb, #2a8cff 14%, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff)) !important;
+  box-shadow: inset 0 0 0 1px rgba(30, 110, 220, .45), inset 0 1px 0 rgba(255, 255, 255, .8), 0 8px 22px rgba(30, 40, 80, .12) !important; }
+/* el pie trae su propio tema oscuro (encore-dark-theme) y pisa las variables del modo claro: se las devolvemos */
+html.lm-light [data-testid="footer-div"] { --text-base: #15171f; --text-subdued: #4a5064; --essential-base: #15171f; --essential-subdued: #5c6378; }
+html.lm-light [data-testid="footer-div"] :is(a, p, span, li) { color: var(--text-subdued); }
+html.lm-light [data-testid="footer-div"] h4, html.lm-light [data-testid="footer-div"] a[class*="legacy-button"] { color: var(--text-base); }
+
+/* Cabecera pegada arriba de Inicio (chips) al desplazar: vidrio con el tono del fondo, no gris/negro fijo */
+#main-view div[style*="opacity"]:empty { background-color: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 82%, #000) 94%, transparent) !important; box-shadow: inset 0 -1px 0 var(--g-rim-2); }
+html.lm-light #main-view div[style*="opacity"]:empty { background-color: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 45%, #fff) 94%, transparent) !important; }
+
+/* Modo claro en las páginas de detalle: la cabecera de la entidad (álbum, lista, artista...) trae texto blanco fijo */
+html.lm-light #main-view section:not([data-testid="artist-page"]) > [data-testid="entity-header"] { color: var(--text-subdued); }
+html.lm-light #main-view section:not([data-testid="artist-page"]) > [data-testid="entity-header"] :is(h1, [data-testid="entityTitle"]) { color: var(--text-base); }
+/* cabecera compacta que aparece al desplazar y encabezado fijo de columnas: vidrio con el tono del fondo, no negro fijo */
+html.lm-light #main-view [data-testid="topbar"] > div:first-child { background-color: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 45%, #fff) 97%, transparent) !important; color: var(--text-base); }
+html.lm-light #main-view [data-testid="topbar"] :is(h2, span[data-encore-id="text"], a) { color: var(--text-base); }
+html.lm-light #main-view [role="grid"] > div[role="presentation"]:has([role="columnheader"]) { background: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 45%, #fff) 97%, transparent) !important; }
+/* títulos de canción y de la cabecera compacta: el texto interno quedaba blanco fijo; hereda el color oscuro del enlace */
+html.lm-light #main-view [data-testid="tracklist-row"] a > [data-encore-id="text"] { color: inherit; }
+html.lm-light #main-view [data-testid="topbar"] [data-encore-id="text"] { color: var(--text-base) !important; }
+/* artista: el nombre va sobre la foto oscura, siempre en blanco aunque el fondo sea claro */
+html.lm-light #main-view :is([data-testid="artist-page"], :has(> [data-testid="background-image"]), :has([data-testid="background-image"])) [data-testid="entity-header"] :is(h1, span, div, a) { color: #fff !important; text-shadow: 0 1px 8px rgba(0, 0, 0, .45); }
+/* cabecera compacta oscura: casi opaca para que no se transparente el contenido que pasa por debajo */
+html:not(.lm-light) #main-view [data-testid="topbar"] > div:first-child { background-color: color-mix(in srgb, color-mix(in srgb, var(--background-base) 40%, rgb(14, 14, 22)) 97%, transparent) !important; }
+/* podcast y episodio en claro: descripciones y títulos traen blanco o gris claro fijo (clase de Spotify); pasan a las variables oscuras.
+   Se excluyen filas de canciones (la que suena va en verde), chips, banners y la cabecera sobre foto. */
+html.lm-light #main-view [class*="encore-text-body"]:not([data-testid="tracklist-row"] *, [data-encore-id="chip"] *, [data-encore-id="banner"] *, [data-testid="entity-header"] *, [data-testid="shortcut-image"] *) { color: var(--text-subdued) !important; }
+html.lm-light #main-view :is([class*="encore-text-body"] > div, [class*="encore-text-body"] > span):not([data-testid="tracklist-row"] *, [data-encore-id="chip"] *, [data-encore-id="banner"] *, [data-testid="entity-header"] *, [data-testid="shortcut-image"] *) { color: inherit; }
+html.lm-light #main-view :is([class*="encore-text-body-medium-bold"], [class*="encore-text-body-small-bold"], [class*="encore-text-title"]):not([data-testid="tracklist-row"] *, [data-encore-id="chip"] *, [data-encore-id="banner"] *, [data-testid="entity-header"] *, [data-testid="shortcut-image"] *) { color: var(--text-base) !important; }
+/* cabecera de lista/álbum en claro: enlaces y metadatos traen blanco o rosa fijos */
+html.lm-light #main-view section:not([data-testid="artist-page"]):not(:has([data-testid="background-image"])) > [data-testid="entity-header"] :is(span, a, div) { color: var(--text-subdued) !important; }
+html.lm-light #main-view section:not([data-testid="artist-page"]):not(:has([data-testid="background-image"])) > [data-testid="entity-header"] :is(h1, [data-testid="entityTitle"], a, a *, b, [data-testid="creator-link"]) { color: var(--text-base) !important; }
+/* encabezado de columnas (Título, Álbum): más contraste en claro */
+html.lm-light #main-view [data-testid="column-header-context-menu"] :is(span, div) { color: var(--text-base) !important; }
+html.lm-light #main-view section:not([data-testid="artist-page"]):not(:has([data-testid="background-image"])) > [data-testid="entity-header"] { --text-base: #15171f; --text-subdued: #3d4350; --essential-base: #15171f; --essential-subdued: #3d4350; }
+/* franja de color de la cabecera en claro: más suave, para que el texto oscuro se lea aun con carátulas negras */
+html.lm-light #main-view div:empty[style*="--background-base"] { opacity: .28; }
+
+/* Sombras que no se corten: los carruseles y listas recortan lo que sale por los lados. Las sombras de abajo usan spread negativo
+   (solo asoman hacia abajo, con el mismo radio de la forma) y las de la imagen pasan al contenedor que ya la recorta. */
+#main-view img[data-testid="card-image"], #main-view [data-testid="card-image"] { box-shadow: none !important; }
+#main-view div:has(> div > img[data-testid="card-image"]), #main-view div:has(> img[data-testid="card-image"]) { box-shadow: 0 4px 4px -4px var(--g-card-shadow, rgba(0, 0, 0, .6)) !important; }
+#main-view [data-encore-id="chip"][aria-checked="true"] > span { box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .12), 0 4px 4px -4px var(--g-card-shadow, rgba(0, 0, 0, .5)) !important; }
+#main-view [data-encore-id="chip"] > span[class*="inner"]:not([class*="selected"]) { box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2) !important; }
+#main-view div:has(> div > [data-testid="shortcut-background"]) { box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 4px -4px var(--g-card-shadow, rgba(0, 0, 0, .5)) !important; }
+#main-view [data-testid="grid-container"] a > div[style*="background-color"] { box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 4px -4px var(--g-card-shadow, rgba(0, 0, 0, .5)) !important; }
+/* portada grande de la cabecera (playlist, show): sombra del sitio de ~40px que el contenedor recorta; más corta y hacia abajo */
+#main-view :is([data-testid="playlist-image"], [data-testid="entity-image"]) img, #main-view :is([data-testid="playlist-image"], [data-testid="entity-image"]) { box-shadow: 0 4px 4px -4px rgba(0, 0, 0, .55) !important; }
+/* imagen del atajo de Inicio: el sitio le pone 0 8px 24px y la tarjeta la recorta */
+#main-view div:has(> [data-testid="shortcut-image"]) { box-shadow: none !important; }
+#main-view button img { box-shadow: 0 4px 4px -4px rgba(0, 0, 0, .55) !important; }
+
+/* La cabecera pegada de Inicio trae un velo negro (::after al 60 %) que la volvía gris sobre fondos claros o de color */
+#main-view div[style*="opacity"]:empty::after { background: transparent !important; }

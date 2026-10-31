@@ -1,0 +1,53 @@
+/* Páginas de YouTube Music (ytm-paginas): se aplica después de glass-ytm.css. Solo apariencia. */
+
+/* pestañas pegajosas (Biblioteca/Descargas): al quedar fijas el sitio las pinta de negro con sombra cuadrada */
+ytmusic-tabs.stuck { background: color-mix(in srgb, var(--lm-tint, #262a3d) 98%, transparent) !important;
+  box-shadow: 0 1px 0 var(--g-rim-2) !important; }
+
+/* cabecera de artista: velo negro rectangular con borde duro (la foto ya se oculta en glass-ytm.css) */
+ytmusic-immersive-header-renderer .content-container-wrapper { background: none !important; }
+
+/* insignia de "Reproducir todo aleatoriamente" (Biblioteca): bloque gris opaco */
+ytmusic-icon-badge-renderer { background: var(--g-fill-2) !important; border-radius: 8px;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }
+
+/* filas con línea inferior: con esquinas redondeadas la línea se curvaba en los extremos; ahora es una línea recta con margen */
+ytmusic-responsive-list-item-renderer { border-image: linear-gradient(90deg, transparent 12px, var(--g-rim-2) 12px, var(--g-rim-2) calc(100% - 12px), transparent 0) 0 0 1 0; }
+
+/* tarjeta destacada de la búsqueda (Radio · Rock): fondo desenfocado nativo con degradé oscuro opaco; el vidrio de la tarjeta ya alcanza */
+ytmusic-card-shelf-renderer .immersive-background { opacity: 0 !important; }
+ytmusic-card-shelf-renderer ytmusic-thumbnail-renderer, ytmusic-card-shelf-renderer ytmusic-thumbnail-renderer img { border-radius: 12px; overflow: clip; }
+
+/* botón "Guardar" de la cabecera (podcast, playlist): el texto y el icono quedaban casi negros sobre el vidrio oscuro */
+ytmusic-responsive-header-renderer ytmusic-toggle-button-renderer tp-yt-paper-button#button { color: inherit !important; }
+ytmusic-responsive-header-renderer ytmusic-toggle-button-renderer { --iron-icon-fill-color: currentColor; --yt-spec-icon-active-other: currentColor; }
+
+/* filas de episodios (podcast): misma línea recta con margen en vez de la curva de las esquinas */
+ytmusic-multi-row-list-item-renderer { border-image: linear-gradient(90deg, transparent 12px, var(--g-rim-2) 12px, var(--g-rim-2) calc(100% - 12px), transparent 0) 0 0 1 0; }
+
+/* miniaturas de episodios/videos en filas: esquinas casi rectas; 8px como el resto de las filas */
+ytmusic-multi-row-list-item-renderer ytmusic-thumbnail-renderer, ytmusic-multi-row-list-item-renderer yt-img-shadow,
+ytmusic-multi-row-list-item-renderer .thumbnail-container img { border-radius: 8px !important; overflow: clip; }
+
+/* ---------- Modo claro (html.lm-light) ---------- */
+/* pestañas (Biblioteca/Descargas, YT Music/Biblioteca): el sitio las pinta en blanco fijo */
+html.lm-light ytmusic-tabs yt-formatted-string.tab { color: var(--g-text-2) !important; }
+html.lm-light ytmusic-tabs yt-formatted-string.tab.selected { color: var(--g-text) !important; }
+html.lm-light ytmusic-tabs yt-formatted-string.tab.selected { border-bottom-color: var(--g-text) !important; }
+/* cabecera de álbum/playlist/podcast: botón de reproducir y botones redondos (el sitio fija blanco para el modo oscuro) */
+html.lm-light ytmusic-responsive-header-renderer ytmusic-play-button-renderer { background: var(--g-sel) !important; --ytmusic-play-button-icon-color: var(--g-sel-text); }
+html.lm-light ytmusic-responsive-header-renderer ytmusic-play-button-renderer yt-icon { color: var(--g-sel-text) !important; fill: var(--g-sel-text) !important; }
+html.lm-light ytmusic-responsive-header-renderer :is(yt-button-renderer, ytmusic-menu-renderer) :is(button, yt-icon, .ytSpecButtonShapeNextHost):not(.ytSpecButtonShapeNextFilled) { color: var(--g-text) !important; fill: var(--g-text); }
+/* descripciones (artista, álbum, episodio): blanco fijo con 70% */
+html.lm-light ytmusic-description-shelf-renderer yt-formatted-string, html.lm-light ytmusic-description-shelf-renderer #description { color: var(--g-text-2) !important; }
+
+/* ---------- Sombras que el contenedor recorta (rectas o cortadas) ---------- */
+/* botones de categoría (Explorar / Estados de ánimo): la celda recorta con overflow; solo canto de luz, sin sombra externa */
+ytmusic-navigation-button-renderer button { box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2) !important; }
+/* carátulas de carruseles: el carril (ul#items) recorta toda sombra exterior; queda solo el canto de luz */
+html { --ytp-card-shadow: rgba(0, 0, 0, .45); }
+html.lm-light { --ytp-card-shadow: rgba(40, 50, 80, .4); }
+ytmusic-carousel ytmusic-two-row-item-renderer .image-wrapper { box-shadow: inset 0 0 0 1px var(--g-rim-2) !important; }
+ytmusic-carousel ytmusic-two-row-item-renderer:hover .image-wrapper { box-shadow: inset 0 0 0 1px var(--g-rim) !important; }
+/* botón Suscribirse de la cabecera de artista: la cabecera recorta a 8px */
+ytmusic-immersive-header-renderer ytmusic-subscribe-button-renderer button.ytSpecButtonShapeNextHost { box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 3px 6px -2px var(--ytp-card-shadow) !important; }

@@ -8,6 +8,11 @@
   }
   if (location.hostname !== 'music.youtube.com' && !SP) return;
 
+  // Sin el aviso "¿Desea salir del sitio?": la app cambia de servicio o recarga la página sola, y el aviso la frenaba.
+  const addEv = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (t, ...r) { if (t === 'beforeunload' && this === window) return; return addEv.call(this, t, ...r); };
+  Object.defineProperty(window, 'onbeforeunload', { get: () => null, set: () => {}, configurable: true });
+
   // Única modificación visual: con la ventana oculta se pausan animaciones para gastar menos CPU.
   const css = `
     html.lm-hidden *, html.lm-hidden *::before, html.lm-hidden *::after { animation: none !important; transition: none !important; }
@@ -28,6 +33,22 @@
     el.textContent = css;
     (document.head || document.documentElement).appendChild(el);
   });
+
+  // Estilo Cristal (opcional, solo apariencia). Rust reemplaza estos marcadores al crear la página
+  // y luego lo prende o apaga con __lm.glass() al cambiar el ajuste o al terminar de cargar.
+  const GLASS_CSS = /*__LM_GLASS_CSS__*/{}[SP ? 'sp' : 'ytm'] || '';
+  // g: null (apagado) o { tone: 'dark' | 'light', tint: '#rrggbb' } con el fondo fijo elegido en Configuración
+  let glassEl = null;
+  const setGlass = (g) => whenRoot(() => {
+    const r = document.documentElement;
+    if (!g || !GLASS_CSS) { glassEl?.remove(); glassEl = null; r.classList.remove('lm-glass', 'lm-light'); return; }
+    if (!glassEl) { glassEl = document.createElement('style'); glassEl.textContent = GLASS_CSS; }
+    (document.head || r).appendChild(glassEl);
+    r.classList.add('lm-glass');
+    r.classList.toggle('lm-light', g.tone === 'light');
+    r.style.setProperty('--lm-tint', g.tint);
+  });
+  setGlass(/*__LM_GLASS_ON__*/null);
 
   // Funciones llamadas desde Rust (bandeja y reproductor flotante)
   // Volumen elegido desde el flotante. YouTube lo reinicia solo (cambio de canción, normalización de volumen...),
@@ -162,6 +183,7 @@
       document.querySelectorAll('video').forEach((v) => { if (v.muted) h ? v.pause() : v.play().catch(() => {}); });
       const r = document.documentElement; if (!r) return; r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full);
     },
+    glass: setGlass,
   } : {
     playPause: () => {
       const v = document.querySelector('video');
@@ -183,6 +205,7 @@
       const r = document.documentElement; if (!r) return;
       r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full);
     },
+    glass: setGlass,
   };
 
   // Informa de la canción al reproductor flotante. Solo se envía cuando algo CAMBIA (canción, pausa, duración, volumen,

@@ -64,6 +64,8 @@ struct Settings {
     theme: String,  // "auto" (sigue a Windows), "dark" o "light"
     glass: String,  // estilo del flotante: "off", "art" (cristal sobre la carátula) o "screen" (transparente sobre la pantalla)
     format: String, // formato del flotante: "normal", "compact" (una fila) o "mini" (cápsula)
+    glass_bg: String,    // fondo fijo del Cristal en la app: "dark", "light" o "custom"
+    glass_color: String, // color del fondo cuando glass_bg es "custom" (#rrggbb)
     #[serde(default)] // ausente en archivos viejos = false (el default de la estructura es true para instalaciones nuevas)
     float_v2: bool, // ya se adaptó la escala al flotante nuevo (tarjeta)
 }
@@ -74,7 +76,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), glass: "off".into(), format: "normal".into(), float_v2: true,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), glass: "off".into(), format: "normal".into(), glass_bg: "dark".into(), glass_color: "#5b4bd6".into(), float_v2: true,
         }
     }
 }
@@ -823,13 +825,14 @@ struct BarState {
     pomo_left: u64,
     update: Option<String>,
     theme: String,
+    glass: serde_json::Value, // ver glass_spec
     maximized: bool,
 }
 
 #[tauri::command]
 fn bar_state(app: AppHandle) -> BarState {
     let st = app.state::<AppState>();
-    let (source, theme) = { let c = st.settings.lock().unwrap(); (c.source.clone(), c.theme.clone()) };
+    let (source, theme, glass) = { let c = st.settings.lock().unwrap(); (c.source.clone(), c.theme.clone(), glass_spec(&c)) };
     let (pomo_phase, pomo_left) = {
         let pm = st.pomo.lock().unwrap();
         match pm.phase {
@@ -847,6 +850,7 @@ fn bar_state(app: AppHandle) -> BarState {
         pomo_left,
         update: UPD.get().and_then(|u| u.lock().unwrap().version.clone()),
         theme,
+        glass,
         maximized: main_win(&app).and_then(|w| w.is_maximized().ok()).unwrap_or(false),
     }
 }
@@ -861,9 +865,20 @@ async fn bar_action(app: AppHandle, action: String) {
     }
 }
 
+// Cristal de la app (YouTube Music, Spotify y ventanas propias): null si está apagado, o { tone, tint }.
+// El tono (texto claro u oscuro) sale del brillo del color de fondo.
+fn glass_spec(c: &Settings) -> serde_json::Value {
+    if c.glass == "off" { return serde_json::Value::Null; }
+    let tint = match c.glass_bg.as_str() { "light" => "#dfe3ee", "custom" => c.glass_color.as_str(), _ => "#262a3d" };
+    let rgb = u32::from_str_radix(tint.trim_start_matches('#'), 16).unwrap_or(0);
+    let lum = 0.2126 * ((rgb >> 16) & 255) as f64 + 0.7152 * ((rgb >> 8) & 255) as f64 + 0.0722 * (rgb & 255) as f64;
+    serde_json::json!({ "tone": if lum > 150.0 { "light" } else { "dark" }, "tint": tint })
+}
+
 #[derive(Serialize)]
 struct SettingsView {
     settings: Settings,
+    glass_spec: serde_json::Value,
     autostart: bool,
     version: String,
 }
@@ -872,6 +887,7 @@ struct SettingsView {
 fn get_settings(app: AppHandle) -> SettingsView {
     SettingsView {
         settings: app.state::<AppState>().settings.lock().unwrap().clone(),
+        glass_spec: glass_spec(&app.state::<AppState>().settings.lock().unwrap()),
         autostart: app.autolaunch().is_enabled().unwrap_or(false),
         version: app.package_info().version.to_string(),
     }
@@ -906,6 +922,8 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "theme" => if let Some(v) = value.as_str().filter(|v| ["auto", "dark", "light"].contains(v)) { c.theme = v.into() },
             "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "art", "screen"].contains(v)) { c.glass = v.into() },
             "format" => if let Some(v) = value.as_str().filter(|v| ["normal", "compact", "mini"].contains(v)) { c.format = v.into() },
+            "glass_bg" => if let Some(v) = value.as_str().filter(|v| ["dark", "light", "custom"].contains(v)) { c.glass_bg = v.into() },
+            "glass_color" => if let Some(v) = value.as_str().filter(|v| v.len() == 7 && v.starts_with('#') && v[1..].chars().all(|h| h.is_ascii_hexdigit())) { c.glass_color = v.into() },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
             "idle_webview" => if let Some(v) = b { c.idle_webview = v },
             "idle_hide_ui" => if let Some(v) = b { c.idle_hide_ui = v },
@@ -919,6 +937,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
         "format" => { let cur = app.state::<AppState>().settings.lock().unwrap().scale; set_float_scale(&app, cur) }   // ajusta la ventana al formato
         "source" => if let Some(v) = value.as_str() { set_source(&app, v) },
         "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
+        "glass" | "glass_bg" | "glass_color" => { let g = glass_spec(&app.state::<AppState>().settings.lock().unwrap()); js(&app, &format!("window.__lm&&window.__lm.glass({g})")) }
         "autostart" => if let Some(v) = b {
             let al = app.autolaunch();
             let _ = if v { al.enable() } else { al.disable() };
@@ -1209,11 +1228,16 @@ fn main() {
         }).build())
         .setup(|app| {
             *app.state::<AppState>().settings.lock().unwrap() = load_settings(app.handle());
-            let start_url = source_url(&app.state::<AppState>().settings.lock().unwrap().source);
+            let st = app.state::<AppState>();
+            let (start_url, glass) = { let c = st.settings.lock().unwrap(); (source_url(&c.source), glass_spec(&c)) };
+            // estilo Cristal: las hojas de cada sitio viajan dentro del script; si arranca prendido se aplica antes de pintar
+            let init = include_str!("inject.js")
+                .replace("/*__LM_GLASS_CSS__*/{}", &serde_json::json!({ "ytm": concat!(include_str!("glass-ytm.css"), include_str!("glass-ytm-pages.css")), "sp": concat!(include_str!("glass-sp.css"), include_str!("glass-sp-pages.css")) }).to_string())
+                .replace("/*__LM_GLASS_ON__*/null", &glass.to_string());
             #[allow(unused_mut)]
             let mut builder = WebviewBuilder::new("main", WebviewUrl::External(start_url.parse().unwrap()))
             .user_agent(&user_agent())
-            .initialization_script(include_str!("inject.js"))
+            .initialization_script(&init)
             .on_navigation(|u| {
                 let ok = allowed_in_app(u);
                 if !ok {
@@ -1223,7 +1247,12 @@ fn main() {
             })
             // Una página que se recarga con la ventana oculta (caída, vigilante, cambio de servicio) vuelve al modo ahorro.
             .on_page_load(|w, p| {
-                if p.event() == tauri::webview::PageLoadEvent::Finished && (!w.window().is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst)) {
+                if p.event() != tauri::webview::PageLoadEvent::Finished { return; }
+                // el script se armó al abrir la app: si el Cristal cambió desde entonces, aquí se corrige
+                let st = w.app_handle().state::<AppState>();
+                let glass = glass_spec(&st.settings.lock().unwrap());
+                let _ = w.eval(&format!("window.__lm&&window.__lm.glass({glass})"));
+                if !w.window().is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst) {
                     set_main_idle(w.app_handle(), true);
                 }
             })
@@ -1389,6 +1418,18 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn el_tono_del_cristal_sale_del_fondo() {
+        let mut c = super::Settings::default();
+        assert!(super::glass_spec(&c).is_null());
+        c.glass = "screen".into();
+        assert_eq!(super::glass_spec(&c)["tone"], "dark");
+        c.glass_bg = "light".into();
+        assert_eq!(super::glass_spec(&c)["tone"], "light");
+        c.glass_bg = "custom".into(); c.glass_color = "#ffe08a".into();
+        assert_eq!(super::glass_spec(&c), serde_json::json!({ "tone": "light", "tint": "#ffe08a" }));
+    }
+
     #[test]
     fn settings_viejos_migran_la_escala() {
         let viejo: super::Settings = serde_json::from_str(r#"{"scale": 0.6, "welcomed": true}"#).unwrap();
