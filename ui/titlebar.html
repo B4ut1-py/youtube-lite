@@ -40,8 +40,11 @@
   /* Cristal: solo color, radio y sombras (nada cambia de lugar ni de tamaño) */
   html.glass { --bar: transparent; --seg: var(--tint); --segOn: rgba(255, 255, 255, .24); }
   html.glass.light { --segOn: rgba(255, 255, 255, .8); }
-  html.glass header { border-bottom-color: var(--rim2); }
-  html.glass #lm-art { background-size: 100vw 100vh; }
+  /* con Cristal la barra es del mismo color que el velo de arriba de YouTube Music y Spotify: se unen sin línea */
+  html.glass header { border-bottom-color: transparent; }
+  html.glass #lm-art { background: color-mix(in srgb, var(--lm-tint) 75%, #000); }
+  html.glass.light #lm-art { background: color-mix(in srgb, var(--lm-tint) 40%, #fff); }
+  html.glass #lm-art::after { display: none; }
   html.glass .seg { border-radius: 999px; box-shadow: inset 0 1px 0 var(--rim2), inset 0 -1px 0 var(--rim2); }
   html.glass .seg button { border-radius: 999px; }
   html.glass .seg button:not(.on):hover { background: var(--hover); color: var(--text); }

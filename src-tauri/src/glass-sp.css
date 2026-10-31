@@ -10,7 +10,7 @@
   --g-shadow: 0 2px 6px rgba(0, 0, 0, .3);   /* corto: los paneles están a 8px unos de otros y cada contenedor recorta lo que se pasa */
   --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #000) 93%, transparent); --g-layer-shadow: 0 16px 40px rgba(0, 0, 0, .4);   /* capas que flotan (menús, desplegables, diálogos, avisos): casi opacas */
   --g-head: rgba(16, 16, 24, .88); --g-hl: rgba(255, 255, 255, .08); --g-press: rgba(255, 255, 255, .04);
-  --g-solid: color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #1c1c24); --g-text: #fff; --g-text-2: rgba(255, 255, 255, .72); --g-accent: #539df5; --g-scroll: rgba(255, 255, 255, .22); --g-card-shadow: rgba(0, 0, 0, .3);
+  --g-solid: color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #1c1c24); --g-text: #fff; --g-text-2: rgba(255, 255, 255, .72); --g-accent: #539df5; --g-scroll: rgba(255, 255, 255, .22); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 75%, #000) 97%, transparent); --g-card-shadow: rgba(0, 0, 0, .3);
 }
 /* Modo claro: vidrio blanco translúcido, sombras suaves, texto e iconos oscuros por las variables encore */
 html.lm-light {
@@ -19,7 +19,7 @@ html.lm-light {
   --g-shadow: 0 2px 6px rgba(30, 40, 70, .16);
   --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 94%, transparent); --g-layer-shadow: 0 14px 36px rgba(30, 40, 70, .22);
   --g-head: rgba(246, 248, 253, .92); --g-hl: rgba(30, 40, 70, .07); --g-press: rgba(30, 40, 70, .12);
-  --g-solid: color-mix(in srgb, var(--lm-tint, #dfe3ee) 60%, #fff); --g-text: #15171f; --g-text-2: #4a5064; --g-accent: #0b5cc8; --g-scroll: rgba(30, 40, 70, .28); --g-card-shadow: rgba(30, 40, 70, .2);
+  --g-solid: color-mix(in srgb, var(--lm-tint, #dfe3ee) 60%, #fff); --g-text: #15171f; --g-text-2: #4a5064; --g-accent: #0b5cc8; --g-scroll: rgba(30, 40, 70, .28); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 97%, transparent); --g-card-shadow: rgba(30, 40, 70, .2);
 }
 html.lm-light.encore-dark-theme, html.lm-light .encore-dark-theme {
   --text-base: #15171f; --text-subdued: #4a5064; --text-bright-accent: #0d7a37; --text-positive: #0d7a37; --text-negative: #b3261e; --text-warning: #8a5300; --text-announcement: #0b5cc8;
@@ -269,3 +269,7 @@ html.lm-light [data-testid="now-playing-bar"] button:not([aria-pressed="true"]):
 html.lm-light [data-testid="now-playing-bar"] [data-testid="progress-bar"] * { --bg-color: rgba(30, 40, 70, .18); --fg-color: #3d4357; }
 /* franja cerrada: 8px de aire con el borde derecho de la ventana y 8px con el panel central */
 div:has(> button[aria-label="Mostrar la vista Sonando"]) { width: 32px !important; }
+
+/* Barra de arriba: el mismo velo que YouTube Music, del color de la barra de Lite Music, que se desvanece hacia abajo
+   (así la barra de la app y la página se unen sin corte) */
+html.lm-glass #global-nav-bar { background: linear-gradient(var(--g-topveil) 55%, transparent) !important; }

@@ -336,3 +336,8 @@ html.lm-light tp-yt-paper-tab.ytmusic-player-page[disabled] { color: rgba(20, 22
 /* Mensajes vacios del panel (Letra, etc.): mas claros para contraste */
 ytmusic-player-page ytmusic-message-renderer yt-formatted-string { color: var(--g-text-2) !important; }
 ytmusic-player-page ytmusic-player-queue-item .thumbnail-overlay, ytmusic-player-page ytmusic-player-queue-item ytmusic-item-thumbnail-overlay-renderer { border-radius: 8px; overflow: clip; }
+
+/* Fondo de la raíz: debajo de la barra de desplazamiento de la página no hay nada pintado y se veía el blanco
+   de WebView2. Un color del tono del fondo (plano: no se repinta al desplazar) deja la franja integrada. */
+html.lm-glass { background: color-mix(in srgb, var(--lm-tint, #262a3d) 72%, #000) !important; }
+html.lm-glass.lm-light { background: color-mix(in srgb, var(--lm-tint, #dfe3ee) 85%, #fff) !important; }
