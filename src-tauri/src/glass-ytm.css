@@ -1,0 +1,225 @@
+/* Estilo Cristal (Liquid Glass) para YouTube Music. Solo apariencia: nada cambia de lugar ni de tamaño.
+   Se arma con los archivos de diseño por sección; lo aplica inject.js cuando el ajuste "glass" está en "art". */
+
+/* Maqueta: YouTube Music con estilo Cristal (tipo Apple "Liquid Glass").
+   Solo apariencia: colores, transparencias, esquinas y brillos. Los botones y textos quedan donde están. */
+:root {
+  --g-fill: rgba(255, 255, 255, .08); --g-fill-2: rgba(255, 255, 255, .14); --g-fill-3: rgba(255, 255, 255, .2);
+  --g-panel: rgba(28, 28, 36, .32);
+  --g-rim: rgba(255, 255, 255, .34); --g-rim-2: rgba(255, 255, 255, .08);
+  --g-edge: linear-gradient(140deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .06) 30%, rgba(255, 255, 255, .02) 65%, rgba(255, 255, 255, .28));
+  --g-shadow: 0 8px 28px rgba(0, 0, 0, .28), 0 1px 3px rgba(0, 0, 0, .18);
+  --g-blur: blur(36px) saturate(1.8);
+  --g-accent: #ff3d6e;
+}
+
+/* ---------- 1. Fondo: la carátula de la canción, enorme y desenfocada ---------- */
+html, body, ytmusic-app, ytmusic-app-layout, #layout, ytmusic-browse-response, #content, ytmusic-section-list-renderer,
+ytmusic-guide-renderer, #guide-wrapper, #guide-content, #mini-guide-background {
+  --ytmusic-general-background-a: transparent !important; --ytmusic-general-background-b: transparent !important;
+  --ytmusic-general-background-c: transparent !important; --ytmusic-background: transparent !important;
+  background: transparent !important; }
+html::before { content: ""; position: fixed; inset: -160px; z-index: -2; background: #101018 var(--lm-cover) center / cover;
+  filter: blur(90px) saturate(1.9) brightness(.62); }
+html::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(70% 55% at 85% 10%, rgba(255, 255, 255, .08), transparent 70%), linear-gradient(rgba(10, 10, 16, .12), rgba(10, 10, 16, .5)); }
+ytmusic-browse-response ytmusic-fullbleed-thumbnail-renderer { visibility: hidden !important; opacity: 0 !important; }   /* imagen de cabecera: cortaba el fondo */
+ytmusic-browse-response .background-gradient { background: none !important; }
+
+/* receta del vidrio: relleno translúcido + desenfoque + canto iluminado (borde con degradé) + sombra */
+#guide-wrapper::before, #player-bar-background {
+  background: var(--g-panel) !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow) !important; }
+#guide-wrapper::after, #player-bar-background::after {
+  content: ""; position: absolute; pointer-events: none; padding: 1px; background: var(--g-edge);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+
+/* ---------- 2. Paneles flotantes ---------- */
+/* barra superior: sin franja; solo un velo desenfocado que se desvanece hacia abajo */
+#nav-bar-background { background: linear-gradient(rgba(12, 12, 18, .55), transparent) !important;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); box-shadow: none !important; }
+#nav-bar-divider { display: none !important; }
+/* menú lateral: panel de vidrio flotante con esquinas grandes */
+#guide-wrapper { border: 0 !important; box-shadow: none !important; }
+#guide-wrapper::before, #guide-wrapper::after { top: 0; left: 0; width: calc(100% - 1px); height: calc(100vh - 72px - 12px); border-radius: 24px; }
+#guide-wrapper::before { content: ""; position: absolute; z-index: -1; }
+#guide-wrapper #divider, ytmusic-guide-section-renderer #divider { border-color: rgba(255, 255, 255, .1) !important; }
+/* reproductor: cápsula de vidrio flotante */
+ytmusic-player-bar { background: transparent !important; }
+/* sin desenfoque en vivo: medido, al desplazar costaba +1,2% de CPU; un vidrio casi opaco se ve igual de limpio */
+#player-bar-background { background: rgba(16, 16, 22, .9) !important; border-radius: 0; }   /* tamaño y posición originales: la línea y el knob de progreso viven en su borde de arriba, así que sin esquinas */
+#player-bar-background::after { inset: 0; border-radius: inherit; }
+/* velo desenfocado al pie: lo que pasa por debajo de la cápsula se funde en vez de asomarse */
+ytmusic-app-layout::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 96px; z-index: 3; pointer-events: none;
+  background: linear-gradient(transparent, rgba(10, 10, 16, .6));
+  -webkit-mask-image: linear-gradient(transparent, #000 45%); mask-image: linear-gradient(transparent, #000 45%); }
+
+/* ---------- 3. Controles en forma de cápsula de vidrio (solo los que ya tienen fondo o borde) ---------- */
+ytmusic-guide-entry-renderer tp-yt-paper-item { border-radius: 999px !important; }
+ytmusic-guide-entry-renderer[active] tp-yt-paper-item { background: var(--g-fill-2) !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 14px rgba(0, 0, 0, .18); }
+ytmusic-guide-entry-renderer:not([active]) tp-yt-paper-item:hover { background: var(--g-fill) !important; }
+ytmusic-chip-cloud-chip-renderer .gradient-box { background: transparent !important; }
+ytmusic-chip-cloud-chip-renderer a.yt-simple-endpoint { background: var(--g-fill) !important; border-radius: 999px !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 2px 8px rgba(0, 0, 0, .12) }
+ytmusic-chip-cloud-chip-renderer a.yt-simple-endpoint:hover { background: var(--g-fill-2) !important; }
+ytmusic-chip-cloud-chip-renderer[is-selected] a.yt-simple-endpoint { background: rgba(255, 255, 255, .9) !important; }
+ytmusic-search-box .search-box { background: var(--g-fill) !important; border: 0 !important; border-radius: 999px !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 16px rgba(0, 0, 0, .18) }
+.ytSpecButtonShapeNextTonal, .ytSpecButtonShapeNextOutline { background: var(--g-fill-2) !important; border: 0 !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 14px rgba(0, 0, 0, .18) !important; }
+.ytSpecButtonShapeNextTonal:hover, .ytSpecButtonShapeNextOutline:hover { background: var(--g-fill-3) !important; }
+#previous-items-button, #next-items-button { border: 0 !important; background: var(--g-fill) !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 2px 8px rgba(0, 0, 0, .14); }
+#previous-items-button[disabled], #next-items-button[disabled] { opacity: .4; }
+
+/* ---------- 4. Carátulas: esquinas suaves, canto de luz y sombra ---------- */
+ytmusic-two-row-item-renderer .image-wrapper, ytmusic-two-row-item-renderer #thumbnail, ytmusic-two-row-item-renderer yt-img-shadow { border-radius: 12px !important; overflow: clip !important; }
+ytmusic-two-row-item-renderer yt-img-shadow#image > img#img { border-radius: 12px !important; }
+ytmusic-two-row-item-renderer .image-wrapper { background: transparent !important; box-shadow: 0 12px 28px rgba(0, 0, 0, .34), inset 0 0 0 1px rgba(255, 255, 255, .14) !important; }
+ytmusic-player-bar .thumbnail-image-wrapper, ytmusic-player-bar .image { border-radius: 8px !important; }
+
+/* ---------- 5. Progreso y volumen ---------- */
+#progress-bar #primaryProgress, #volume-slider #primaryProgress { background: linear-gradient(90deg, #ff8aac, var(--g-accent)) !important; }
+#progress-bar #primaryProgress { box-shadow: 0 0 10px rgba(255, 61, 110, .6); }
+#progress-bar #progressContainer { background: rgba(255, 255, 255, .16) !important; }
+#progress-bar .slider-knob-inner, #volume-slider .slider-knob-inner { background: #fff !important; border-color: #fff !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .2), 0 1px 6px rgba(0, 0, 0, .3); }
+
+/* ---------- 6. Barras de desplazamiento finas y translúcidas ---------- */
+/* la app ya fija scrollbar-color (eso anula ::-webkit-scrollbar): se tiñe solo el color, el grosor no cambia */
+html, * { scrollbar-color: rgba(255, 255, 255, .14) transparent; }
+
+/* 20-paginas: Principal, Explorar, Biblioteca, Estados de ánimo, Listas de éxitos, búsqueda. Solo apariencia. */
+
+/* botones de categoría (Explorar / Estados de ánimo): vidrio, el color de la franja se conserva */
+ytmusic-navigation-button-renderer button { background: var(--g-fill) !important; border-radius: 12px !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 14px rgba(0, 0, 0, .16) !important; }
+ytmusic-navigation-button-renderer button:hover { background: var(--g-fill-2) !important; }
+
+/* filas de listas (búsqueda, listas de éxitos, biblioteca): esquinas y fondo al pasar el mouse */
+ytmusic-responsive-list-item-renderer { border-radius: 8px; overflow: clip; }
+ytmusic-responsive-list-item-renderer:hover, ytmusic-responsive-list-item-renderer[selected] { background: var(--g-fill) !important;
+  box-shadow: inset 0 1px 0 var(--g-rim-2), inset 0 -1px 0 var(--g-rim-2); }
+ytmusic-responsive-list-item-renderer .left-items ytmusic-thumbnail-renderer, ytmusic-responsive-list-item-renderer yt-img-shadow { border-radius: 8px; overflow: clip; }
+
+/* tarjeta destacada de la búsqueda */
+ytmusic-card-shelf-renderer .card-container { border-radius: 12px !important; overflow: clip; background: var(--g-fill) !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow); }
+ytmusic-card-shelf-renderer .card-container .immersive-background { border-radius: 12px; overflow: clip; }
+
+
+/* pestañas (Biblioteca/Descargas, YT Music/Biblioteca) y botón de orden */
+ytmusic-tabs { --ytmusic-tabs-divider-color: rgba(255, 255, 255, .1); }
+ytmusic-tabs #divider, ytmusic-tabs .tab-container { border-color: rgba(255, 255, 255, .1) !important; }
+ytmusic-sort-filter-button-renderer { --ytmusic-sort-filter-button-background: var(--g-fill); }
+ytmusic-sort-filter-button-renderer tp-yt-paper-dropdown-menu, ytmusic-sort-filter-button-renderer tp-yt-paper-button {
+  background: var(--g-fill) !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }
+
+/* carátulas de las cuadrículas: las vacías (sin imagen) también quedan con vidrio */
+ytmusic-grid-renderer ytmusic-two-row-item-renderer .image-wrapper, ytmusic-carousel ytmusic-two-row-item-renderer .image-wrapper { background-color: var(--g-fill); overflow: clip; }
+ytmusic-two-row-item-renderer:hover .image-wrapper { box-shadow: 0 14px 30px rgba(0, 0, 0, .4), inset 0 0 0 1px rgba(255, 255, 255, .28) !important; }
+ytmusic-card-shelf-renderer ytmusic-fullbleed-thumbnail-renderer { display: none !important; }   /* fondo desenfocado nativo: el vidrio ya cubre */
+
+/* 30-detalle: álbum, playlist, artista, podcast. Solo apariencia. */
+
+/* botones redondos de la cabecera (descargar, me gusta, guardar, menú) y el de compartir/suscribir */
+ytmusic-responsive-header-renderer ytmusic-download-playlist-button-renderer,
+ytmusic-responsive-header-renderer ytmusic-toggle-button-renderer,
+ytmusic-responsive-header-renderer yt-button-renderer:not(ytmusic-download-playlist-button-renderer *),
+ytmusic-responsive-header-renderer ytmusic-menu-renderer {
+  background: var(--g-fill) !important;
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 14px rgba(0, 0, 0, .18); }
+ytmusic-responsive-header-renderer ytmusic-play-button-renderer {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(0, 0, 0, .12), 0 6px 20px rgba(0, 0, 0, .3); }
+ytmusic-responsive-header-renderer ytmusic-download-playlist-button-renderer:hover,
+ytmusic-responsive-header-renderer ytmusic-toggle-button-renderer:hover,
+ytmusic-responsive-header-renderer yt-button-renderer:not(ytmusic-download-playlist-button-renderer *):hover,
+ytmusic-responsive-header-renderer ytmusic-menu-renderer:hover { background: var(--g-fill-2) !important; }
+
+/* carátula grande de la cabecera (no el avatar chico de la línea de autor) */
+ytmusic-responsive-header-renderer .thumbnail img { border-radius: 12px !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .38), 0 0 0 1px rgba(255, 255, 255, .14); }
+ytmusic-responsive-header-renderer .thumbnail, ytmusic-responsive-header-renderer .thumbnail yt-img-shadow { border-radius: 12px !important; }
+
+/* filas de canciones */
+ytmusic-responsive-list-item-renderer { border-radius: 12px !important;
+  transition: background-color .15s; }
+ytmusic-responsive-list-item-renderer:hover { background: var(--g-fill) !important;
+  box-shadow: inset 0 1px 0 var(--g-rim-2), inset 0 -1px 0 var(--g-rim-2); }
+ytmusic-responsive-list-item-renderer[selected], ytmusic-responsive-list-item-renderer[play-button-state="playing"],
+ytmusic-responsive-list-item-renderer[play-button-state="paused"], ytmusic-responsive-list-item-renderer[is-playing] {
+  background: var(--g-fill-2) !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 14px rgba(0, 0, 0, .16); }
+ytmusic-responsive-list-item-renderer .thumbnail, ytmusic-responsive-list-item-renderer ytmusic-thumbnail-renderer,
+ytmusic-responsive-list-item-renderer yt-img-shadow { border-radius: 8px !important; overflow: clip; }
+ytmusic-responsive-list-item-renderer ytmusic-menu-renderer:hover, ytmusic-responsive-list-item-renderer ytmusic-like-button-renderer:hover { background: transparent !important; }
+
+/* filas de otras listas dentro de detalle (multi-fila, p. ej. episodios) */
+ytmusic-multi-row-list-item-renderer { border-radius: 12px !important; }
+ytmusic-multi-row-list-item-renderer:hover { background: var(--g-fill) !important; }
+
+/* carátulas de las tarjetas de las secciones (álbumes, videos, similares) */
+ytmusic-carousel-shelf-renderer ytmusic-two-row-item-renderer ytmusic-thumbnail-renderer { border-radius: 12px !important; overflow: clip; }
+
+/* descripción expandible y "Mostrar todo" */
+ytmusic-description-shelf-renderer { border-radius: 22px; }
+ytmusic-description-shelf-renderer #more-button, ytmusic-description-shelf-renderer #less-button { border-radius: 999px; }
+
+/* 40-capas: reproductor expandido, menus, dialogos, toasts, tooltips */
+
+/* ---- Reproductor expandido ---- */
+ytmusic-player-page #player { border-radius: 12px; overflow: clip; box-shadow: var(--g-shadow); }
+ytmusic-player-page #song-image, ytmusic-player-page #thumbnail, ytmusic-player-page #song-video { border-radius: 12px; overflow: clip; }
+ytmusic-player-page ytmusic-av-toggle .av-toggle { border-radius: 999px !important; background: var(--g-fill) !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); overflow: clip; }
+ytmusic-player-page ytmusic-av-toggle .av-toggle button { border-radius: 999px !important; background: transparent !important; }
+ytmusic-player-page ytmusic-av-toggle .av-toggle button[aria-pressed="true"] { background: var(--g-fill-2) !important; box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }
+ytmusic-player-page ytmusic-player-queue-item { border-radius: 12px; overflow: clip; }
+ytmusic-player-page ytmusic-player-queue-item:hover { background: var(--g-fill); }
+ytmusic-player-page ytmusic-player-queue-item[selected] { background: var(--g-fill-2); box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }
+ytmusic-player-page ytmusic-player-queue-item yt-img-shadow, ytmusic-player-page ytmusic-player-queue-item img { border-radius: 8px !important; overflow: clip; }
+ytmusic-player-page ytmusic-queue-header-renderer ytmusic-button-renderer button,
+ytmusic-player-page ytmusic-queue-header-renderer .ytSpecButtonShapeNextHost { border-radius: 999px; background: var(--g-fill); box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2); }
+ytmusic-player-page #side-panel tp-yt-paper-tab[aria-selected="true"] { background: var(--g-fill); border-radius: 999px; }
+ytmusic-player-page #side-panel tp-yt-paper-tab[aria-disabled="true"] { opacity: .5; }
+ytmusic-player-page ytmusic-description-shelf-renderer,
+ytmusic-player-page ytmusic-carousel-shelf-renderer ytmusic-two-row-item-renderer { border-radius: 12px; }
+ytmusic-player-page ytmusic-two-row-item-renderer img, ytmusic-player-page ytmusic-two-row-item-renderer yt-img-shadow { border-radius: 12px; overflow: clip; }
+
+/* ---- Menus emergentes (capa pasajera: backdrop-filter permitido) ---- */
+ytmusic-menu-popup-renderer, ytmusic-multi-page-menu-renderer { border-radius: 22px; overflow: clip; }
+ytmusic-menu-popup-renderer tp-yt-paper-listbox#items {
+  background: var(--g-panel); border-radius: 22px; overflow: clip;
+  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
+}
+tp-yt-iron-dropdown #contentWrapper, tp-yt-iron-dropdown tp-yt-paper-listbox { border-radius: 22px; }
+ytmusic-menu-popup-renderer :is(ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer, ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-service-item-download-renderer):hover,
+ytmusic-menu-popup-renderer :is(ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer, ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-service-item-download-renderer)[focused] { background: var(--g-fill-2); border-radius: 12px; }
+
+/* ---- Dialogos y popups ---- */
+ytmusic-popup-container tp-yt-paper-dialog, tp-yt-paper-dialog.ytmusic-popup-container {
+  background: var(--g-panel); border-radius: 22px; overflow: clip;
+  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
+}
+ytmusic-popup-container tp-yt-paper-dialog :is(ytmusic-add-to-playlist-renderer, ytmusic-confirm-dialog-renderer, ytmusic-unified-share-panel-renderer, ytmusic-dialog-renderer, yt-confirm-dialog-renderer) { background: transparent; }
+ytmusic-popup-container tp-yt-paper-dialog :is(.ytSpecButtonShapeNextHost) { border-radius: 999px; }
+tp-yt-iron-overlay-backdrop { background: rgba(0, 0, 0, .45); }
+
+/* ---- Avisos (toasts) ---- */
+tp-yt-paper-toast, ytmusic-notification-action-renderer, yt-notification-action-renderer tp-yt-paper-toast {
+  background: var(--g-panel); color: #fff; border-radius: 999px; overflow: clip;
+  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
+}
+
+/* ---- Tooltips ---- */
+tp-yt-paper-tooltip #tooltip {
+  background: var(--g-panel); color: #fff; border-radius: 12px;
+  -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+  box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), var(--g-shadow);
+}
+
+/* Mensajes vacios del panel (Letra, etc.): mas claros para contraste */
+ytmusic-player-page ytmusic-message-renderer yt-formatted-string { color: rgba(255, 255, 255, .8) !important; }
+ytmusic-player-page ytmusic-player-queue-item .thumbnail-overlay, ytmusic-player-page ytmusic-player-queue-item ytmusic-item-thumbnail-overlay-renderer { border-radius: 8px; overflow: clip; }
