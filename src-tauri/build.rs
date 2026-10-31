@@ -1,7 +1,7 @@
 fn main() {
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(
-            tauri_build::AppManifest::new().commands(&["report_state", "get_state", "control", "scale_float", "get_settings", "set_setting", "settings_action", "choose_source", "open_link", "bar_state", "bar_action"]),
+            tauri_build::AppManifest::new().commands(&["report_state", "get_state", "control", "scale_float", "get_settings", "set_setting", "settings_action", "choose_source", "open_link", "bar_state", "bar_action", "search", "search_results", "search_play", "search_hide"]),
         ),
     )
     .expect("error al generar la configuración de Tauri");

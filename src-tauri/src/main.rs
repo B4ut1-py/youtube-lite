@@ -64,6 +64,7 @@ struct Settings {
     theme: String,  // "auto" (sigue a Windows), "dark" o "light"
     glass: String,  // estilo del flotante: "off", "art" (cristal sobre la carátula) o "screen" (transparente sobre la pantalla)
     format: String, // formato del flotante: "normal", "compact" (una fila) o "mini" (cápsula)
+    float_app_bg: bool,  // el flotante con Cristal usa el fondo de la app en lugar de la carátula
     glass_bg: String,    // fondo fijo del Cristal en la app: "dark", "light" o "custom"
     glass_color: String, // color del fondo cuando glass_bg es "custom" (#rrggbb)
     #[serde(default)] // ausente en archivos viejos = false (el default de la estructura es true para instalaciones nuevas)
@@ -76,7 +77,7 @@ impl Default for Settings {
             skin: "dog".into(), scale: 1.0, autohide: true, float_opacity: 1.0, float_on_top: true, float_at_start: true,
             blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90,
             mood_min_s: 15, mood_max_s: 30, pomo_focus_min: 25, pomo_rest_min: 5, close_to_tray: true, auto_update: true,
-            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), glass: "off".into(), format: "normal".into(), glass_bg: "dark".into(), glass_color: "#5b4bd6".into(), float_v2: true,
+            idle_webview: true, idle_hide_ui: true, destroy_float: true, source: "ytm".into(), welcomed: false, notify_song: false, theme: "auto".into(), glass: "off".into(), format: "normal".into(), float_app_bg: false, glass_bg: "dark".into(), glass_color: "#5b4bd6".into(), float_v2: true,
         }
     }
 }
@@ -100,6 +101,8 @@ struct PlayerState {
     liked: bool,
     sleep_left: u64,
     cfg: Settings,
+    #[serde(default)]
+    glass: serde_json::Value, // ver glass_spec: el flotante lo usa si toma el fondo de la app
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -124,6 +127,7 @@ struct AppState {
     pos_at: Mutex<Instant>,        // cuándo se informó por última vez el tiempo de la canción
     last_report: Mutex<Instant>,   // última vez que la página de música dio señales de vida
     sleep_at: Mutex<Option<Instant>>, // temporizador para dormir: cuándo pausar
+    search: Mutex<(u64, Option<serde_json::Value>)>, // búsqueda rápida: número de la última y su respuesta
 }
 
 // Tamaño de la ventana del flotante según su formato: la tarjeta más margen para la sombra y la etiqueta de arriba.
@@ -721,6 +725,7 @@ fn get_state(state: tauri::State<AppState>) -> PlayerState {
     let pm = state.pomo.lock().unwrap();
     p.pomo_phase = match pm.phase { Phase::Off => "off", Phase::Focus => "focus", Phase::Rest => "rest" }.into();
     p.cfg = state.settings.lock().unwrap().clone();
+    p.glass = glass_spec(&p.cfg);
     p.pomo_left = if pm.phase == Phase::Off { 0 } else { pm.end.saturating_duration_since(Instant::now()).as_secs() };
     p.sleep_left = state.sleep_at.lock().unwrap().map_or(0, |t| t.saturating_duration_since(Instant::now()).as_secs());
     p
@@ -728,6 +733,7 @@ fn get_state(state: tauri::State<AppState>) -> PlayerState {
 
 #[tauri::command]
 fn control(app: AppHandle, action: String, value: Option<f64>) {
+    if action == "search" { return toggle_search(&app); }
     let code = match action.as_str() {
         "playpause" => "window.__lm&&window.__lm.playPause()".to_string(),
         "next" => "window.__lm&&window.__lm.next()".to_string(),
@@ -923,6 +929,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "theme" => if let Some(v) = value.as_str().filter(|v| ["auto", "dark", "light"].contains(v)) { c.theme = v.into() },
             "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "art", "screen"].contains(v)) { c.glass = v.into() },
             "format" => if let Some(v) = value.as_str().filter(|v| ["normal", "compact", "mini"].contains(v)) { c.format = v.into() },
+            "float_app_bg" => if let Some(v) = b { c.float_app_bg = v },
             "glass_bg" => if let Some(v) = value.as_str().filter(|v| ["dark", "light", "custom"].contains(v)) { c.glass_bg = v.into() },
             "glass_color" => if let Some(v) = value.as_str().filter(|v| v.len() == 7 && v.starts_with('#') && v[1..].chars().all(|h| h.is_ascii_hexdigit())) { c.glass_color = v.into() },
             "auto_update" => if let Some(v) = b { c.auto_update = v },
@@ -938,7 +945,8 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
         "format" => { let cur = app.state::<AppState>().settings.lock().unwrap().scale; set_float_scale(&app, cur) }   // ajusta la ventana al formato
         "source" => if let Some(v) = value.as_str() { set_source(&app, v) },
         "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
-        "glass" | "glass_bg" | "glass_color" => { let g = glass_spec(&app.state::<AppState>().settings.lock().unwrap()); js(&app, &format!("window.__lm&&window.__lm.glass({g})")) }
+        "glass" | "glass_bg" | "glass_color" => { let g = glass_spec(&app.state::<AppState>().settings.lock().unwrap()); js(&app, &format!("window.__lm&&window.__lm.glass({g})")); paint_caption(&app) }
+        "theme" => paint_caption(&app),
         "autostart" => if let Some(v) = b {
             let al = app.autolaunch();
             let _ = if v { al.enable() } else { al.disable() };
@@ -996,7 +1004,39 @@ fn open_settings(app: &AppHandle) {
         b = b.additional_browser_args(BROWSER_ARGS);
     }
     let _ = b.build();
+    paint_caption(app);
 }
+
+// Barra de título nativa de Configuración: con Cristal toma el color de su fondo; si no, sigue el tema.
+#[cfg(windows)]
+fn paint_caption(app: &AppHandle) {
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE};
+    let Some(w) = app.get_webview_window("settings") else { return };
+    let Ok(hwnd) = w.hwnd() else { return };
+    let st = app.state::<AppState>();
+    let (g, theme) = { let c = st.settings.lock().unwrap(); (glass_spec(&c), c.theme.clone()) };
+    let dark = match g["tone"].as_str() {
+        Some(t) => t == "dark",
+        None => theme == "dark" || (theme == "auto" && w.theme().map(|t| t == tauri::Theme::Dark).unwrap_or(true)),
+    };
+    // color aproximado de la parte de arriba de la página (fondo con el velo de theme.css); 0xFFFFFFFF = el de Windows
+    let (caption, text): (u32, u32) = match g["tint"].as_str().and_then(|t| u32::from_str_radix(t.trim_start_matches('#'), 16).ok()) {
+        Some(rgb) => {
+            let (veil, a) = if dark { (36.0, 0.28) } else { (255.0, 0.42) };
+            let ch = |sh: u32| (((rgb >> sh) & 255) as f64 * (1.0 - a) + veil * a) as u32;
+            (ch(16) | ch(8) << 8 | ch(0) << 16, if dark { 0x00FFFFFF } else { 0x001A1A1F })   // COLORREF es 0x00BBGGRR
+        }
+        None => (0xFFFFFFFF, 0xFFFFFFFF),
+    };
+    let dark = dark as i32;
+    unsafe {
+        let _ = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark as *const _ as _, 4);
+        let _ = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &caption as *const _ as _, 4);
+        let _ = DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text as *const _ as _, 4);
+    }
+}
+#[cfg(not(windows))]
+fn paint_caption(_: &AppHandle) {}
 
 // La página de música (YouTube Music / Spotify) y la ventana que la contiene junto con la barra de arriba.
 fn main_window(app: &AppHandle) -> Option<Webview> {
@@ -1159,6 +1199,82 @@ async fn tokio_sleep(secs: u64) {
     let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_secs(secs))).await;
 }
 
+// Búsqueda rápida: ventana chica que se abre con la lupa del flotante o con Ctrl+Mayús+Espacio.
+// La página de música hace la búsqueda (inject.js: __lm.search) y devuelve los resultados con search_results.
+fn toggle_search(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("search") {
+        if w.is_visible().unwrap_or(false) { let _ = w.hide(); return; }
+        place_search(&w);
+        let _ = w.show();
+        let _ = w.set_focus();
+        let _ = w.eval("window.lmOpen&&lmOpen()");
+        return;
+    }
+    #[allow(unused_mut)]
+    let mut b = WebviewWindowBuilder::new(app, "search", WebviewUrl::App("search.html".into()))
+        .title("Lite Music Búsqueda")
+        .inner_size(556.0, 470.0)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .visible(false);
+    #[cfg(windows)]
+    {
+        b = b.additional_browser_args(BROWSER_ARGS);
+    }
+    let Ok(w) = b.build() else { return };
+    place_search(&w);
+    let ww = w.clone();
+    w.on_window_event(move |e| if let WindowEvent::Focused(false) = e { let _ = ww.hide(); });   // al hacer clic afuera se cierra
+    let _ = w.show();
+    let _ = w.set_focus();
+}
+
+// centrada a lo ancho y un poco arriba, en la pantalla donde está el mouse
+fn place_search(w: &WebviewWindow) {
+    let m = w.cursor_position().ok().and_then(|p| w.monitor_from_point(p.x, p.y).ok().flatten()).or_else(|| w.primary_monitor().ok().flatten());
+    if let (Some(m), Ok(sz)) = (m, w.outer_size()) {
+        let (mp, ms) = (m.position(), m.size());
+        let _ = w.set_position(tauri::PhysicalPosition::new(mp.x + (ms.width as i32 - sz.width as i32) / 2, mp.y + ms.height as i32 * 16 / 100));
+    }
+}
+
+#[tauri::command]
+async fn search(app: AppHandle, q: String, kind: String) -> serde_json::Value {
+    let seq = { let st = app.state::<AppState>(); let mut s = st.search.lock().unwrap(); s.0 += 1; s.1 = None; s.0 };
+    js(&app, &format!("window.__lm&&window.__lm.search&&window.__lm.search({},{},{seq})", serde_json::json!(q), serde_json::json!(kind)));
+    for _ in 0..80 {   // hasta 8 s: Spotify carga su página de búsqueda
+        let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_millis(100))).await;
+        let st = app.state::<AppState>();
+        let s = st.search.lock().unwrap();
+        if s.0 != seq { return serde_json::json!({ "stale": true }); }   // ya se escribió otra cosa
+        if let Some(v) = &s.1 { return v.clone(); }
+    }
+    serde_json::json!({ "items": [], "error": "La página no respondió" })
+}
+
+#[tauri::command]
+fn search_results(app: AppHandle, seq: u64, items: serde_json::Value, error: String) {
+    let st = app.state::<AppState>();
+    let mut s = st.search.lock().unwrap();
+    if s.0 == seq { s.1 = Some(serde_json::json!({ "items": items, "error": error })); }
+}
+
+#[tauri::command]
+fn search_play(app: AppHandle, i: u64, open: bool) {
+    js(&app, &format!("window.__lm&&window.__lm.searchPlay&&window.__lm.searchPlay({i})"));
+    if let Some(w) = app.get_webview_window("search") { let _ = w.hide(); }
+    if open { show(&app); }   // un artista se abre en la ventana
+}
+
+#[tauri::command]
+fn search_hide(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("search") { let _ = w.hide(); }
+}
+
 // Acciones de los menús (bandeja y barra superior de la ventana).
 fn on_menu(app: &AppHandle, id: &str) {
     match id {
@@ -1202,8 +1318,12 @@ const HOTKEY_MODS: tauri_plugin_global_shortcut::Modifiers = tauri_plugin_global
     .union(tauri_plugin_global_shortcut::Modifiers::ALT)
     .union(tauri_plugin_global_shortcut::Modifiers::SHIFT);
 
+const SEARCH_MODS: tauri_plugin_global_shortcut::Modifiers = tauri_plugin_global_shortcut::Modifiers::CONTROL
+    .union(tauri_plugin_global_shortcut::Modifiers::SHIFT);
+
 fn on_hotkey(app: &AppHandle, sc: &tauri_plugin_global_shortcut::Shortcut) {
     use tauri_plugin_global_shortcut::Code;
+    if sc.matches(SEARCH_MODS, Code::Space) { return toggle_search(app); }
     for (code, action, step) in [(Code::Space, "playpause", 0.0), (Code::ArrowRight, "next", 0.0), (Code::ArrowLeft, "prev", 0.0),
                                  (Code::ArrowUp, "volume_step", 0.1), (Code::ArrowDown, "volume_step", -0.1)] {
         if sc.matches(HOTKEY_MODS, code) {
@@ -1216,8 +1336,8 @@ mod thumbbar;
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action, choose_source, open_link, bar_state, bar_action])
-        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()), pos_at: Mutex::new(Instant::now()), sleep_at: Mutex::new(None) })
+        .invoke_handler(tauri::generate_handler![report_state, get_state, control, scale_float, get_settings, set_setting, settings_action, choose_source, open_link, bar_state, bar_action, search, search_results, search_play, search_hide])
+        .manage(AppState { pomo: Mutex::new(Pomo { phase: Phase::Off, end: Instant::now(), focus_s: 1500, rest_s: 300, prev_skin: String::new() }), user_float: Mutex::new(true), auto_hidden: Mutex::new(false), settings: Mutex::new(Settings::default()), pending_pos: Mutex::new(None), player: Mutex::new(PlayerState::default()), float_visible: Mutex::new(true), last_report: Mutex::new(Instant::now()), pos_at: Mutex::new(Instant::now()), sleep_at: Mutex::new(None), search: Mutex::new((0, None)) })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
@@ -1394,6 +1514,7 @@ fn main() {
                 for code in [Code::Space, Code::ArrowRight, Code::ArrowLeft, Code::ArrowUp, Code::ArrowDown] {
                     let _ = app.global_shortcut().register(Shortcut::new(Some(HOTKEY_MODS), code));
                 }
+                let _ = app.global_shortcut().register(Shortcut::new(Some(SEARCH_MODS), Code::Space));   // búsqueda rápida
             }
             thumbbar::install(app.handle(), &win);
 

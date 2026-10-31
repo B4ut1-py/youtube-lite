@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "youtube-page",
-  "description": "Las páginas de YouTube Music y Spotify solo pueden enviar el estado de reproducción.",
+  "description": "Las páginas de YouTube Music y Spotify solo pueden enviar el estado de reproducción y los resultados de la búsqueda rápida.",
   "windows": [
     "main"
   ],
@@ -12,6 +12,7 @@
     ]
   },
   "permissions": [
-    "allow-report-state"
+    "allow-report-state",
+    "allow-search-results"
   ]
 }
