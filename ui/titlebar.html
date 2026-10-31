@@ -37,21 +37,6 @@
   /* franja de arriba para cambiar el alto (la barra ocupa el borde superior de la ventana) */
   .rz { position: fixed; top: 0; height: 4px; z-index: 5; } .rz.n { left: 8px; right: 8px; cursor: ns-resize; }
   .rz.nw { left: 0; width: 8px; cursor: nwse-resize; } .rz.ne { right: 0; width: 8px; cursor: nesw-resize; }
-  /* Cristal: solo color, radio y sombras (nada cambia de lugar ni de tamaño) */
-  html.glass { --bar: transparent; --seg: var(--tint); --segOn: rgba(255, 255, 255, .24); }
-  html.glass.light { --segOn: rgba(255, 255, 255, .8); }
-  html.glass header { border-bottom-color: var(--rim2); }
-  html.glass #lm-art img { left: -20%; top: -100%; width: 140%; height: 300%; }   /* la barra es una franja: se toma un tramo de la carátula */
-  html.glass .seg { border-radius: 999px; box-shadow: inset 0 1px 0 var(--rim2), inset 0 -1px 0 var(--rim2); }
-  html.glass .seg button { border-radius: 999px; }
-  html.glass .seg button:not(.on):hover { background: var(--hover); color: var(--text); }
-  html.glass .seg button.on { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), 0 2px 6px rgba(0, 0, 0, .2); }
-  html.glass.light .brand em { color: #c8164a; }
-  html.glass .ic { border-radius: 999px; }
-  html.glass .ic:hover, html.glass .ic.on { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
-  html.glass .ic .dot { box-shadow: 0 0 0 1.5px var(--rim); }
-  html.glass .chips button, html.glass .pill { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
-  html.glass .chips button:hover { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), 0 2px 8px rgba(255, 61, 110, .4); }
 </style>
 </head>
 <body>
@@ -110,7 +95,6 @@ document.querySelectorAll('.rz').forEach((z) => z.addEventListener('mousedown', 
 async function refresh() {
   let s; try { s = await inv('bar_state'); } catch (_) { return; }
   if (s.theme !== theme) { theme = s.theme; applyTheme(theme); }
-  applyGlass(s.glass, s.cover);
   document.querySelectorAll('#seg button').forEach((b) => b.classList.toggle('on', b.dataset.src === s.source));
   $('float').classList.toggle('on', s.float);
   const st = $('status');

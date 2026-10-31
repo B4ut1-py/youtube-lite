@@ -11,13 +11,3 @@ html.light {
   --line: #00000014; --text: #18181d; --dim: #63636f; --track: #0000001f;
   --shadow: 0 8px 24px rgba(40, 40, 80, .18);
 }
-/* Cristal (html.glass, ver applyGlass en theme.js): mismas variables que el flotante; fondo = carátula desenfocada */
-html.glass { --glass: rgba(30, 30, 40, .28); --rim: rgba(255, 255, 255, .38); --rim2: rgba(255, 255, 255, .1); --text: #fff; --dim: rgba(255, 255, 255, .74);
-             --track: rgba(255, 255, 255, .22); --hover: rgba(255, 255, 255, .14); --tint: rgba(255, 255, 255, .1); }
-html.glass.light { --glass: rgba(255, 255, 255, .42); --rim: rgba(255, 255, 255, .85); --rim2: rgba(255, 255, 255, .35); --text: #14141a; --dim: rgba(20, 20, 26, .78);
-                   --track: rgba(0, 0, 0, .14); --hover: rgba(255, 255, 255, .45); --tint: rgba(255, 255, 255, .35); }
-html.glass, html.glass body { background: transparent; }
-#lm-art { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: linear-gradient(135deg, #ff7a9c, #7a4dff); }
-#lm-art img { position: absolute; left: -15%; top: -15%; width: 130%; height: 130%; object-fit: cover; filter: blur(26px) saturate(1.6) brightness(.8); }
-html.light #lm-art img { filter: blur(26px) saturate(1.5) brightness(1.25); }
-#lm-art::after { content: ""; position: absolute; inset: 0; background: var(--glass); }
