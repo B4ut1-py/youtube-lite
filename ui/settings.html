@@ -150,7 +150,8 @@ function row(it) {
   if (it.type === 'skins') {
     const w = $('<div class="skins"></div>');
     SKINS.forEach(([id, ic, nm, g]) => {
-      const b = $(`<button class="skin${S.skin === id ? ' on' : ''}"><em${g ? ` style="--sw:linear-gradient(160deg,${g})"` : ''}>${ic}</em><span>${nm}</span></button>`);
+      const b = $(`<button class="skin${S.skin === id ? ' on' : ''}"><em>${ic}</em><span>${nm}</span></button>`);
+      if (g) b.firstChild.style.setProperty('--sw', `linear-gradient(160deg,${g})`);   // por JS: la CSP bloquea style="..." en el HTML
       b.onclick = () => { set('skin', id); w.querySelectorAll('.skin').forEach(x => x.classList.remove('on')); b.classList.add('on'); };
       w.append(b);
     });

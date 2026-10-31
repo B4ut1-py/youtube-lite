@@ -3,7 +3,7 @@
 #[cfg(windows)]
 mod imp {
     use std::{cell::RefCell, sync::OnceLock};
-    use tauri::{AppHandle, Manager, WebviewWindow};
+    use tauri::{AppHandle, Manager, Window};
     use windows::core::w;
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
     use windows::Win32::Graphics::Gdi::CreateBitmap;
@@ -87,7 +87,7 @@ mod imp {
         unsafe { DefSubclassProc(hwnd, msg, wp, lp) }
     }
 
-    pub fn install(app: &AppHandle, w: &WebviewWindow) {
+    pub fn install(app: &AppHandle, w: &Window) {
         let Ok(h) = w.hwnd() else { return };
         let _ = APP.set(app.clone());
         let hwnd = HWND(h.0 as _);
@@ -126,6 +126,6 @@ mod imp {
 pub use imp::{install, update};
 
 #[cfg(not(windows))]
-pub fn install(_app: &tauri::AppHandle, _w: &tauri::WebviewWindow) {}
+pub fn install(_app: &tauri::AppHandle, _w: &tauri::Window) {}
 #[cfg(not(windows))]
 pub fn update(_app: &tauri::AppHandle, _playing: bool) {}

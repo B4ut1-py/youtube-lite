@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Lite Music</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+  :root { --bar: #17171c; --seg: #ffffff10; --segOn: #2c2c35; }
+  html.light { --bar: #f3f3f6; --seg: #00000009; --segOn: #ffffff; }
+  html, body { margin: 0; height: 100%; overflow: hidden; user-select: none; -webkit-user-select: none; }
+  body { background: var(--bar); color: var(--text); font: 12.5px var(--font); }
+  header { height: 40px; display: flex; align-items: center; gap: 8px; padding-left: 12px; border-bottom: 1px solid var(--line); box-sizing: border-box; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 13px; white-space: nowrap; }
+  .brand img { width: 18px; height: 18px; } .brand em { font-style: normal; color: var(--accent); }
+  .seg { display: flex; background: var(--seg); border-radius: 8px; padding: 2px; margin-left: 8px; }
+  .seg button { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
+  .seg button.on { background: var(--segOn); color: var(--text); box-shadow: 0 1px 2px #0005; }
+  .seg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; } .seg i.y { background: #ff0033; } .seg i.s { background: #1ed760; }
+  /* sin style="..." en el HTML: la CSP de la app los bloquea */
+  .grow { flex: 1; align-self: stretch; }
+  .pill { padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 600; color: #fff; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pill.sleep { background: #5b6ee1; } .pill.focus { background: var(--accent); } .pill.rest { background: #2f9e5c; }
+  .pill.upd { background: var(--accent); border: 0; cursor: pointer; font: inherit; font-weight: 650; font-size: 11.5px; }
+  .chips { display: none; align-items: center; gap: 6px; } .chips.on { display: flex; }
+  .chips span { color: var(--dim); margin-right: 2px; white-space: nowrap; }
+  .chips button { padding: 4px 10px; border-radius: 99px; border: 0; background: var(--seg); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .chips button:hover { background: var(--accent); color: #fff; }
+  .ic { position: relative; width: 32px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--dim); display: grid; place-items: center; cursor: pointer; }
+  .ic:hover, .ic.on { background: var(--hover); color: var(--text); }
+  .ic svg { width: 17px; height: 17px; fill: currentColor; }
+  .ic .dot { position: absolute; top: 5px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bar); display: none; }
+  .win { display: flex; align-self: stretch; margin-left: 4px; }
+  .win button { width: 46px; border: 0; background: transparent; color: var(--dim); display: grid; place-items: center; cursor: pointer; }
+  .win button:hover { background: var(--hover); color: var(--text); } .win button.x:hover { background: #e81123; color: #fff; }
+  .win svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1; fill: none; }
+  /* franja de arriba para cambiar el alto (la barra ocupa el borde superior de la ventana) */
+  .rz { position: fixed; top: 0; height: 4px; z-index: 5; } .rz.n { left: 8px; right: 8px; cursor: ns-resize; }
+  .rz.nw { left: 0; width: 8px; cursor: nwse-resize; } .rz.ne { right: 0; width: 8px; cursor: nesw-resize; }
+</style>
+</head>
+<body>
+<div class="rz n" data-dir="North"></div><div class="rz nw" data-dir="NorthWest"></div><div class="rz ne" data-dir="NorthEast"></div>
+<header data-tauri-drag-region>
+  <div class="brand" data-tauri-drag-region><img src="logo.png" alt="" data-tauri-drag-region>Lite <em>Music</em></div>
+  <div class="seg" id="seg">
+    <button data-src="ytm"><i class="y"></i>YouTube Music</button>
+    <button data-src="spotify"><i class="s"></i>Spotify</button>
+  </div>
+  <div class="grow" data-tauri-drag-region></div>
+  <span class="pill" id="status" hidden></span>
+  <div class="chips" id="sleepChips"><span>Pausar la música en</span>
+    <button data-a="sleep15">15 min</button><button data-a="sleep30">30 min</button><button data-a="sleep60">1 hora</button><button data-a="sleep90">1 h 30</button><button data-a="sleep0">Cancelar</button></div>
+  <div class="chips" id="pomoChips"><span>Pomodoro</span>
+    <button data-a="pomo25">25 / 5 min</button><button data-a="pomo50">50 / 10 min</button><button data-a="pomo0">Detener</button></div>
+  <button class="pill upd" id="upd" hidden title="Descarga e instala la versión nueva (la app se reinicia)"></button>
+  <button class="ic" id="float" title="Mostrar / ocultar el reproductor flotante"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3zm2 2v10h14V7zm6 4h6v4.5h-6z"/></svg></button>
+  <button class="ic" id="sleep" title="Temporizador para dormir"><svg viewBox="0 0 24 24"><path d="M14.5 3a8.5 8.5 0 1 0 6.5 14A7 7 0 0 1 14.5 3z"/></svg></button>
+  <button class="ic" id="pomo" title="Pomodoro"><svg viewBox="0 0 24 24"><path d="M12 6a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm-1 3h2v4.5l3 1.8-1 1.7-4-2.4zM9 2h6v2H9z"/></svg></button>
+  <button class="ic" id="cfg" title="Configuración"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5zM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7z"/></svg><i class="dot" id="dot"></i></button>
+  <div class="win">
+    <button id="min" title="Minimizar"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button id="max" title="Maximizar"><svg viewBox="0 0 10 10" id="maxi"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
+    <button id="close" class="x" title="Cerrar (la música sigue en la bandeja)"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+  </div>
+</header>
+<script>
+const inv = (c, a) => window.__TAURI_INTERNALS__.invoke(c, a);
+const $ = (id) => document.getElementById(id);
+const act = (a) => inv('bar_action', { action: a }).then(refresh);
+const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+let theme = null, open = null;
+// Dormir y Pomodoro muestran sus opciones dentro de la barra (no se superponen con la página de música)
+function toggle(which) {
+  open = open === which ? null : which;
+  $('sleepChips').classList.toggle('on', open === 'sleep'); $('pomoChips').classList.toggle('on', open === 'pomo');
+  $('sleep').classList.toggle('on', open === 'sleep'); $('pomo').classList.toggle('on', open === 'pomo');
+  $('status').hidden = !!open || !$('status').textContent;
+}
+document.querySelectorAll('.chips button').forEach((b) => (b.onclick = () => { act(b.dataset.a); toggle(null); }));
+document.querySelectorAll('#seg button').forEach((b) => (b.onclick = () => act('src_' + b.dataset.src)));
+$('sleep').onclick = () => toggle('sleep');
+$('pomo').onclick = () => toggle('pomo');
+$('float').onclick = () => act('float');
+$('cfg').onclick = () => act('cfg');
+$('upd').onclick = () => act('upd');
+$('min').onclick = () => inv('plugin:window|minimize', { label: 'main' });
+$('max').onclick = () => inv('plugin:window|toggle_maximize', { label: 'main' });
+$('close').onclick = () => inv('plugin:window|close', { label: 'main' });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(null); });
+document.querySelectorAll('.rz').forEach((z) => z.addEventListener('mousedown', (e) => {
+  if (e.button === 0) inv('plugin:window|start_resize_dragging', { label: 'main', value: z.dataset.dir });
+}));
+
+async function refresh() {
+  let s; try { s = await inv('bar_state'); } catch (_) { return; }
+  if (s.theme !== theme) { theme = s.theme; applyTheme(theme); }
+  document.querySelectorAll('#seg button').forEach((b) => b.classList.toggle('on', b.dataset.src === s.source));
+  $('float').classList.toggle('on', s.float);
+  const st = $('status');
+  if (s.pomo_phase !== 'off') { st.textContent = `${s.pomo_phase === 'focus' ? 'Estudio' : 'Descanso'} ${fmt(s.pomo_left)}`; st.className = 'pill ' + (s.pomo_phase === 'focus' ? 'focus' : 'rest'); }
+  else if (s.sleep_left > 0) { st.textContent = `Se pausa en ${fmt(s.sleep_left)}`; st.className = 'pill sleep'; }
+  else st.textContent = '';
+  st.hidden = !!open || !st.textContent;
+  $('upd').hidden = !s.update; if (s.update) $('upd').textContent = `Instalar versión ${s.update}`;
+  $('dot').style.display = s.update ? 'block' : 'none';
+  $('maxi').innerHTML = s.maximized ? '<path d="M2.5 .5h7v7M.5 2.5h7v7h-7z"/>' : '<rect x=".5" y=".5" width="9" height="9"/>';
+  $('max').title = s.maximized ? 'Restaurar' : 'Maximizar';
+}
+// Se actualiza una vez por segundo solo mientras se ve (con la ventana en la bandeja no consulta nada).
+refresh();
+setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+</script>
+</body>
+</html>

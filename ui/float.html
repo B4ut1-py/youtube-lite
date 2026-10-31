@@ -13,26 +13,18 @@
           border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
   /* recuadro de la izquierda: carátula, mascota o mood */
   .tile { position: relative; width: 96px; height: 96px; flex: none; border-radius: 12px; overflow: hidden; cursor: pointer;
-          background: radial-gradient(circle at 50% 30%, #ffffff30, transparent 62%), var(--tile, linear-gradient(160deg, #4b5070, #2c3047)); }
+          background: var(--surface2); }
   .tile canvas { position: absolute; left: 0; top: 0; width: 96px; height: 96px; image-rendering: pixelated; }
+  .tile canvas.ch { left: 16px; top: 32px; width: 64px; height: 64px; }   /* personaje: 64 px dentro de la habitación */
+  body.kind-animal .tile canvas.ch { top: 31px; }
   #head { transform-origin: 50% 80%; will-change: transform; }
   #cover { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: filter .3s; }
   #scene, #fx { display: none; pointer-events: none; }
   body.kind-mood #scene { display: block; } body.kind-animal #fx { display: block; }
-  body.kind-cover #cover { display: block; } body.kind-cover canvas#body, body.kind-cover canvas#head,
+  body.kind-cover #cover { display: block; } body.kind-cover .tile canvas,
   body.kind-mood canvas#body, body.kind-mood canvas#head { display: none; }
   body.kind-cover.paused #cover { filter: brightness(.5) saturate(.7); }
   body.kind-none .tile { display: none; }
-  /* fondos de cada aspecto (el dibujo es el mismo en tema claro y oscuro) */
-  .skin-dog { --tile: linear-gradient(160deg, #73b8ff, #3d6fd6); }
-  .skin-cat { --tile: linear-gradient(160deg, #ffa58f, #e8607e); }
-  .skin-cover { --tile: var(--surface2); }
-  .skin-trabajando { --tile: linear-gradient(170deg, #a9cdfb, #7199e0); }
-  .skin-programando { --tile: linear-gradient(170deg, #2b3150, #171a2b); }
-  .skin-tradeando { --tile: linear-gradient(170deg, #2f3550, #1a1d2e); }
-  .skin-descansando { --tile: linear-gradient(170deg, #c3b3ff, #8f78e8); }
-  .skin-estudiando { --tile: linear-gradient(170deg, #4a3a68, #2b2240); }
-  .skin-festejando { --tile: linear-gradient(160deg, #ff8fbf, #7d5cff); }
   /* textos y controles */
   .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   #title { margin-top: 1px; font-size: 14.5px; font-weight: 650; white-space: nowrap; overflow: hidden; letter-spacing: -.1px; }
@@ -40,15 +32,17 @@
   #title.marquee span { animation: slide var(--dur, 8s) ease-in-out infinite alternate; }
   @keyframes slide { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--shift, 0px)); } }
   #artist { margin-top: 1px; font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ctr { display: flex; align-items: center; gap: 2px; margin-top: auto; }
+  .head { display: flex; align-items: flex-start; gap: 2px; }
+  .txt { flex: 1; min-width: 0; }
+  .ctr { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: auto; }
   .b { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text); opacity: .8;
        display: grid; place-items: center; cursor: pointer; transition: transform .08s; }
   .b:hover { background: var(--hover); opacity: 1; } .b:active { transform: scale(.9); }
   .b svg { width: 18px; height: 18px; fill: currentColor; }
-  #pp { width: 34px; height: 34px; margin: 0 3px; border-radius: 50%; background: var(--accent); color: #fff; opacity: 1; box-shadow: 0 3px 10px #ff3d6e55; }
+  #pp { width: 34px; height: 34px; margin: 0; border-radius: 50%; background: var(--accent); color: #fff; opacity: 1; box-shadow: 0 3px 10px #ff3d6e55; }
   #pp:hover { background: var(--accent); filter: brightness(1.08); }
-  #like { margin-left: auto; } #like.on { color: var(--accent); opacity: 1; }
-  .prog { display: flex; align-items: center; gap: 7px; margin-top: 6px; font-size: 10.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  #like { width: 24px; height: 24px; margin: -2px -4px 0 0; } #like svg { width: 17px; height: 17px; } #like.on { color: var(--accent); opacity: 1; }
+  .prog { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 10.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .prog span { min-width: 26px; } .prog span:last-child { text-align: right; }
   #bar { flex: 1; height: 4px; border-radius: 4px; background: var(--track); position: relative; cursor: pointer; }
   #bar::before, #vbar::before { content: ""; position: absolute; inset: -6px; }                      /* más fácil de acertar */
@@ -67,22 +61,24 @@
 <body>
 <div class="card" id="card">
   <div class="tile" id="stage" title="Clic: pausar / reanudar · Arrastra para mover · Rueda: volumen · Ctrl + rueda: tamaño">
-    <canvas id="body" width="48" height="48"></canvas>
-    <canvas id="head" width="48" height="48"></canvas>
-    <canvas id="scene" width="48" height="48"></canvas>
-    <canvas id="fx" width="48" height="48"></canvas>
+    <canvas id="bg" width="96" height="96"></canvas>
+    <canvas class="ch" id="body" width="64" height="64"></canvas>
+    <canvas class="ch" id="head" width="64" height="64"></canvas>
+    <canvas class="ch" id="scene" width="64" height="64"></canvas>
+    <canvas class="ch" id="fx" width="64" height="64"></canvas>
     <img id="cover" alt="">
   </div>
   <div class="info">
-    <div id="title"><span>Lite Music</span></div>
-    <div id="artist"></div>
+    <div class="head">
+      <div class="txt"><div id="title"><span>Lite Music</span></div><div id="artist"></div></div>
+      <button class="b" id="like" title="Me gusta"><svg viewBox="0 0 24 24" id="likei"></svg></button>
+    </div>
+    <div class="prog"><span id="tcur">0:00</span><div id="bar"><div id="fill"></div></div><span id="tdur">0:00</span></div>
     <div class="ctr">
       <button class="b" id="prev" title="Anterior"><svg viewBox="0 0 24 24"><path d="M6 5h2.2v14H6zM20 5v14L9.5 12z"/></svg></button>
       <button class="b" id="pp" title="Reproducir"><svg viewBox="0 0 24 24" id="ppi"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
       <button class="b" id="next" title="Siguiente"><svg viewBox="0 0 24 24"><path d="M15.8 5H18v14h-2.2zM4 5l10.5 7L4 19z"/></svg></button>
-      <button class="b" id="like" title="Me gusta"><svg viewBox="0 0 24 24" id="likei"></svg></button>
     </div>
-    <div class="prog"><span id="tcur">0:00</span><div id="bar"><div id="fill"></div></div><span id="tdur">0:00</span></div>
   </div>
   <div id="vcol" title="Volumen (también con la rueda del mouse)">
     <div id="vbar"><div id="vfill"></div></div>
@@ -97,8 +93,14 @@ applyTheme('auto');
 
 /* ---------- Pixel art (rejilla 48x48) ---------- */
 const DARK = '#2a2233';
-const px = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+// contorno selectivo: el tono de la sombra llevado hacia un violeta oscuro
+const mixc = (a, b, k) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.substr(i, 2), 16) * (1 - k) + parseInt(b.substr(i, 2), 16) * k).toString(16).padStart(2, '0')).join('');
+const OUT = (c) => mixc(c, '#1c1030', .62);
+// Rejilla escalable: el mismo dibujo se rasteriza a S veces más resolución (S = 4/3: de 48 a 64 píxeles)
+let S = 4 / 3;
+const px = (c, x, y, w, h, col) => { c.fillStyle = col; const X = Math.round(x * S), Y = Math.round(y * S); c.fillRect(X, Y, Math.max(1, Math.round((x + w) * S) - X), Math.max(1, Math.round((y + h) * S) - Y)); };
 const ell = (c, cx, cy, rx, ry, col) => {
+  cx *= S; cy *= S; rx *= S; ry *= S;
   c.fillStyle = col;
   for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
     for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++)
@@ -106,22 +108,23 @@ const ell = (c, cx, cy, rx, ry, col) => {
 };
 // Elipse con contorno, sombra inferior-derecha y luz superior-izquierda
 const blob = (c, cx, cy, rx, ry, col, shade, light) => {
-  ell(c, cx, cy, rx + 1, ry + 1, DARK);
+  ell(c, cx, cy, rx + 1, ry + 1, OUT(shade));
   ell(c, cx, cy, rx, ry, shade);
   ell(c, cx - .7, cy - .7, rx - 1.2, ry - 1.2, col);
   if (light) ell(c, cx - rx * .35, cy - ry * .45, rx * .35, ry * .22, light);
 };
 const ring = (c, cx, cy, orx, ory, irx, iry, col, maxY, only) => {
+  [cx, cy, orx, ory, irx, iry, maxY] = [cx, cy, orx, ory, irx, iry, maxY].map((v) => v * S);
   c.fillStyle = col;
   for (let y = Math.floor(cy - ory); y <= maxY; y++)
     for (let x = Math.floor(cx - orx); x <= Math.ceil(cx + orx); x++) {
       const o = ((x + .5 - cx) / orx) ** 2 + ((y + .5 - cy) / ory) ** 2;
       const i = ((x + .5 - cx) / irx) ** 2 + ((y + .5 - cy) / iry) ** 2;
-      if (o <= 1 && i >= 1 && (!only || only(x, y))) c.fillRect(x, y, 1, 1);
+      if (o <= 1 && i >= 1 && (!only || only(x / S, y / S))) c.fillRect(x, y, 1, 1);
     }
 };
 const tri = (c, p, col) => {
-  const [x1, y1, x2, y2, x3, y3] = p;
+  const [x1, y1, x2, y2, x3, y3] = p.map((v) => Math.round(v * S));
   const d = (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
   c.fillStyle = col;
   for (let y = Math.min(y1, y2, y3); y <= Math.max(y1, y2, y3); y++)
@@ -132,15 +135,15 @@ const tri = (c, p, col) => {
     }
 };
 const SKINS = {
-  dog: { fur: '#e0a867', shade: '#b97f45', ear: '#7b4a28', earS: '#5e3519', muzzle: '#fbf0dc', muzzleS: '#e3cfae' },
-  cat: { fur: '#a9b2c4', shade: '#7e889d', ear: '#7e889d', earS: '#5f6a80', muzzle: '#f1f4fa', muzzleS: '#cfd6e3' },
+  dog: { fur: '#eab070', shade: '#c27a4e', ear: '#86492e', earS: '#5f2f2a', muzzle: '#fff4e2', muzzleS: '#e8c9b0' },
+  cat: { fur: '#b4bdd2', shade: '#7f84a8', ear: '#8a8fb2', earS: '#61648a', muzzle: '#f6f7ff', muzzleS: '#d2d4ee' },
 };
 const PHONE = '#ff3b66', PHONE_S = '#b81c43', PHONE_L = '#ff8fa8', BAND = '#3d3d52', BAND_L = '#6a6a88', PINK = '#ff8fa3';
 
 // wave = fase de la animación del saludo (undefined = pose normal): la patita derecha se levanta y se mueve.
 function drawBody(skin, wave) {
   const c = document.getElementById('body').getContext('2d'), s = SKINS[skin];
-  c.clearRect(0, 0, 48, 48);
+  c.clearRect(0, 0, 96, 96);
   blob(c, 24, 46, 14, 10, s.fur, s.shade, null);
   ell(c, 24, 44, 6, 6, s.muzzle); ell(c, 25, 46, 5, 4, s.muzzleS); ell(c, 24, 44, 5, 5, s.muzzle);
   blob(c, 16, 47, 4, 3, s.muzzle, s.muzzleS, null);
@@ -150,7 +153,7 @@ function drawBody(skin, wave) {
 // La patita que saluda se dibuja en la capa de efectos (encima de la cabeza y de las orejas).
 function drawWavePaw(skin, wave) {
   const c = document.getElementById('fx').getContext('2d'), s = SKINS[skin];
-  c.clearRect(0, 0, 48, 48);
+  c.clearRect(0, 0, 96, 96);
   const hx = 41 + 3 * Math.sin(wave), hy = 37 - 1.2 * Math.abs(Math.cos(wave));
   const link = (r, col) => { for (let i = 0; i <= 10; i++) ell(c, 31 + (hx - 31) * i / 10, 45 + (hy - 45) * i / 10, r, r, col); };
   link(3.9, DARK); link(3, s.fur);                                                      // brazo
@@ -160,7 +163,7 @@ function drawWavePaw(skin, wave) {
 }
 function drawHead(skin, sleeping, c0, blink, yawn) {
   const c = c0 || document.getElementById('head').getContext('2d'), s = SKINS[skin];
-  c.clearRect(0, 0, 48, 48);
+  c.clearRect(0, 0, 96, 96);
   // diadema: anillo grueso con contorno, sombra y brillo (solo la mitad superior)
   ring(c, 24, 25, 21.5, 21, 17, 16.5, DARK, 25);
   ring(c, 24, 25, 20.5, 20, 18, 17.5, BAND, 25);
@@ -213,6 +216,16 @@ function drawHead(skin, sleeping, c0, blink, yawn) {
   });
 }
 
+
+// rectángulo en la rejilla de 48 llevado a S (para los efectos: zzz, notas, flechas)
+const fr = (c, x, y, w, h) => { const X = Math.round(x * S), Y = Math.round(y * S); c.fillRect(X, Y, Math.max(1, Math.round((x + w) * S) - X), Math.max(1, Math.round((y + h) * S) - Y)); };
+// La habitación de fondo se dibuja una vez por aspecto, a escala 1 (96x96).
+function drawRoom(skin) {
+  const c = $('bg').getContext('2d'); c.clearRect(0, 0, 96, 96);
+  if (!window.ROOMS || !ROOMS[skin]) return;
+  S = 1; try { ROOMS[skin](c); } finally { S = 4 / 3; }
+}
+
 /* ---------- Estado ---------- */
 let CFG = { blink: true, reactions: true, wave: true, wave_min_s: 25, wave_max_s: 55, yawn: true, yawn_idle_s: 90, mood_min_s: 15, mood_max_s: 30, float_opacity: 1, theme: 'auto' };
 let skin = '', kind = '', playing = false, sleeping = null, seen = false, lastTitle = '', cover = '', liked = null, theme = 'auto';
@@ -233,6 +246,7 @@ function render(st) {
     document.body.className = document.body.className.replace(/\b(skin|kind)-\S+/g, '').trim();
     kind = ['dog', 'cat'].includes(skin) ? 'animal' : (skin === 'cover' || skin === 'none') ? skin : 'mood';
     document.body.classList.add('skin-' + skin, 'kind-' + kind);
+    drawRoom(skin);
     if (kind === 'animal') drawBody(skin);
     if (kind === 'mood') { mood = { mood: skin, action: null, next: CFG.mood_min_s + Math.random() * (CFG.mood_max_s - CFG.mood_min_s) }; moodStart(); }
     else moodStop();
@@ -320,7 +334,7 @@ async function poll() {
 }
 
 /* ---------- Animación del animal: vaivén relajado, patitas firmes + reacciones ---------- */
-const K = 0.5;                            // escala de los movimientos: recuadro de 96 px (antes 192)
+const K = 1 / 3;                          // escala de los movimientos: personaje de 64 px (se diseñaron para 192)
 const head = document.getElementById('head'), bodyEl = document.getElementById('body'), fxC = document.getElementById('fx').getContext('2d');
 let lastWave = 0, t = 0, last = performance.now(), amp = 0, slump = 0, raf = 0, fx = null;
 const PERIOD = 3.2;                       // segundos por vaivén completo (lento = relajado)
@@ -329,19 +343,19 @@ const FX_DUR = { yawn: 2.8, volup: 1.1, voldown: 1.1, wave: 2.8, pause: 3, resum
 function leaveFx(f) { if (!f) return; if (f.name === 'wave') drawBody(skin); if (f.name === 'yawn') drawHead(skin, sleeping); }
 function trigger(name) { if (kind !== 'animal') return; if (!(name === 'wave' ? CFG.wave : name === 'yawn' ? CFG.yawn : CFG.reactions)) return; leaveFx(fx); if (name === 'yawn') drawHead(skin, false, null, true, true); fx = { name, t0: performance.now() / 1000 }; kick(); }
 function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
-const glyphZ = (c, x, y, s) => { c.fillStyle = '#fff'; c.fillRect(x, y, s, 1); c.fillRect(x, y + s - 1, s, 1); for (let i = 0; i < s; i++) c.fillRect(x + s - 1 - i, y + i, 1, 1); };
-const glyphNote = (c, x, y) => { c.fillStyle = '#000'; c.fillRect(x + 2, y - 1, 1, 6); c.fillRect(x + 2, y - 1, 4, 2); c.fillRect(x - 1, y + 3, 4, 3); c.fillStyle = '#fff'; c.fillRect(x + 3, y, 1, 5); c.fillRect(x + 3, y, 3, 1); c.fillRect(x, y + 4, 3, 2); };
+const glyphZ = (c, x, y, s) => { c.fillStyle = '#fff'; fr(c, x, y, s, 1); fr(c, x, y + s - 1, s, 1); for (let i = 0; i < s; i++) fr(c, x + s - 1 - i, y + i, 1, 1); };
+const glyphNote = (c, x, y) => { c.fillStyle = '#000'; fr(c, x + 2, y - 1, 1, 6); fr(c, x + 2, y - 1, 4, 2); fr(c, x - 1, y + 3, 4, 3); c.fillStyle = '#fff'; fr(c, x + 3, y, 1, 5); fr(c, x + 3, y, 3, 1); fr(c, x, y + 4, 3, 2); };
 function drawFx(u, name) {
   if (name === 'wave') return;
   if (name === 'volup' || name === 'voldown') {
-    fxC.clearRect(0, 0, 48, 48);
+    fxC.clearRect(0, 0, 64, 64);
     if (name === 'volup') {                                    // ondas de sonido a los lados
       for (let i = 0; i < 3; i++) { const a = u * 3 - i * .45; if (a < 0 || a > 1) continue; fxC.globalAlpha = 1 - a;
-        [[4 - i * 3, 17], [43 + i * 3, 17]].forEach(([x, y]) => { fxC.fillStyle = '#fff'; fxC.fillRect(x, y, 1, 3 + i * 2); fxC.fillRect(x + (x < 24 ? -1 : 1), y + 1, 1, 1 + i * 2); }); }
-    } else { fxC.globalAlpha = 1 - u; fxC.fillStyle = '#fff'; fxC.fillRect(38, 10, 4, 1); fxC.fillRect(38, 14, 1, 1); fxC.fillRect(40, 14, 1, 1); fxC.fillRect(42, 14, 1, 1); }
+        [[4 - i * 3, 17], [43 + i * 3, 17]].forEach(([x, y]) => { fxC.fillStyle = '#fff'; fr(fxC, x, y, 1, 3 + i * 2); fr(fxC, x + (x < 24 ? -1 : 1), y + 1, 1, 1 + i * 2); }); }
+    } else { fxC.globalAlpha = 1 - u; fxC.fillStyle = '#fff'; fr(fxC, 38, 10, 4, 1); fr(fxC, 38, 14, 1, 1); fr(fxC, 40, 14, 1, 1); fr(fxC, 42, 14, 1, 1); }
     fxC.globalAlpha = 1; return;
   }                                       // la patita se dibuja aparte
-  fxC.clearRect(0, 0, 48, 48);
+  fxC.clearRect(0, 0, 64, 64);
   if (name === 'pause') {
     for (let i = 0; i < 3; i++) {
       const age = (u * 3 - i * 0.55); if (age < 0 || age > 1.6) continue;
@@ -351,7 +365,7 @@ function drawFx(u, name) {
     fxC.globalAlpha = 1 - u; glyphNote(fxC, 40, Math.round(10 - u * 9));
   } else if (name === 'next' || name === 'prev') {
     const d = name === 'next' ? 1 : -1; fxC.globalAlpha = 1 - u;
-    [0, 3, 6].forEach((dy, i) => { fxC.fillStyle = '#fff'; fxC.fillRect(24 + d * (14 + u * 7 + i), 16 + dy, 4 - i, 1); });
+    [0, 3, 6].forEach((dy, i) => { fxC.fillStyle = '#fff'; fr(fxC, 24 + d * (14 + u * 7 + i), 16 + dy, 4 - i, 1); });
   }
   fxC.globalAlpha = 1;
 }
@@ -367,7 +381,7 @@ function frame(now) {
   let rx = 0, rrot = 0, hop = 0, dip = 0;
   if (fx) {
     const u = (now / 1000 - fx.t0) / FX_DUR[fx.name];
-    if (u >= 1) { leaveFx(fx); fx = null; fxC.clearRect(0, 0, 48, 48); }
+    if (u >= 1) { leaveFx(fx); fx = null; fxC.clearRect(0, 0, 64, 64); }
     else {
       const b = Math.sin(Math.PI * u);
       if (fx.name === 'next') { rx = 9 * b; rrot = 10 * b; }
@@ -385,9 +399,9 @@ function frame(now) {
     }
   }
   const skew = s1 * 3.5 * amp;
-  bodyEl.style.transform = `translateY(${(-hop * K).toFixed(1)}px) skewX(${skew.toFixed(2)}deg)`;
+  bodyEl.style.transform = `translateY(${Math.round(-hop * K)}px) skewX(${skew.toFixed(2)}deg)`;
   const neck = -Math.tan(skew * Math.PI / 180) * 50 * K;
-  head.style.transform = `translate(${(neck + (s2 * 5 * amp + rx) * K).toFixed(2)}px, ${((slump * 5 - hop + dip) * K).toFixed(1)}px) rotate(${(s2 * 5 * amp + rrot - slump * 4).toFixed(2)}deg)`;
+  head.style.transform = `translate(${Math.round(neck + (s2 * 5 * amp + rx) * K)}px, ${Math.round((slump * 5 - hop + dip) * K)}px) rotate(${(s2 * 5 * amp + rrot - slump * 4).toFixed(2)}deg)`;
   // se detiene del todo cuando no hay nada que animar (ahorra CPU)
   // ~25 cuadros por segundo: para un vaivén de pixel art alcanza, y gasta menos de la mitad que 60
   if (kind === 'animal' && (playing || amp > 0.01 || Math.abs(slump - (playing ? 0 : 1)) > 0.01 || fx)) raf = setTimeout(() => requestAnimationFrame(frame), 33);
@@ -398,7 +412,7 @@ let mood = null, moodTimer = 0, moodT = 0;
 function drawMoodFrame() {
   if (!mood || !window.SCENES) return;
   const c = document.getElementById('scene').getContext('2d');
-  c.clearRect(0, 0, 48, 48);
+  c.clearRect(0, 0, 64, 64);
   SCENES[mood.mood](c, moodT, mood.action, !playing);
 }
 function moodStart() {
@@ -471,5 +485,7 @@ kick();
 window.__render = render; // para pruebas
 </script>
 <script src="moods.js"></script>
+<script src="scenes.js"></script>
+<script>if (skin) drawRoom(skin);</script>
 </body>
 </html>

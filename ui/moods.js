@@ -1,4 +1,4 @@
-/* Moods: personas haciendo una actividad (pixel art 48x48).
+/* Moods: personas haciendo una actividad (pixel art en rejilla de 48, dibujado a 64 px con S = 4/3).
    Cada mood tiene una pose base y 2 acciones; cada 15-30 s se hace una acción y se vuelve a la base.
    Usa los helpers de float.html (px, ell, blob, tri, DARK). Se redibuja a ~12 fps solo mientras suena. */
 const SKIN = '#f1c9a0', SKIN_S = '#d9a77c';
@@ -11,11 +11,11 @@ const bell = (u) => Math.sin(Math.PI * clamp01(u));
 
 function limb(c, x1, y1, x2, y2, col, r = 3.2) {
   const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
-  [[r + 1, DARK], [r, col]].forEach(([rad, color]) => {
+  [[r + 1, OUT(col)], [r, col]].forEach(([rad, color]) => {
     for (let i = 0; i <= n; i++) ell(c, x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n, rad, rad, color);
   });
 }
-const hand = (c, x, y) => { ell(c, x, y, 3, 3, DARK); ell(c, x, y, 2.1, 2.1, SKIN); };
+const hand = (c, x, y) => { ell(c, x, y, 3, 3, OUT(SKIN_S)); ell(c, x, y, 2.1, 2.1, SKIN); };
 const mugPx = (c, x, y) => {
   px(c, x - 1, y - 1, 7, 7, DARK); px(c, x, y, 5, 5, '#fff'); px(c, x + 4, y, 1, 5, '#ddd');
   px(c, x + 6, y + 1, 2, 3, DARK); px(c, x + 6, y + 2, 1, 1, '#fff'); px(c, x + 1, y, 3, 1, '#7a4a2a');
@@ -40,7 +40,7 @@ function personArms(c, o) {
 }
 function personHead(c, o) {
   const dx = Math.round(o.dx || 0), dy = Math.round(o.dy || 0), e = o.eyes || 'open', ex = o.eyeDx || 0;
-  c.save(); c.translate(dx, dy);
+  c.save(); c.translate(Math.round(dx * S), Math.round(dy * S));   // entero: con decimales el navegador suaviza el pixel art
   px(c, 22, 30, 4, 3, SKIN_S);
   blob(c, 24, 22, 8, 9, SKIN, SKIN_S);
   ell(c, 24, 15, 8.6, 5.2, o.hair); px(c, 15, 16, 2, 5, o.hair); px(c, 31, 16, 2, 5, o.hair); px(c, 17, 17, 14, 1, o.hair);
@@ -158,7 +158,7 @@ const SCENES = {
       px(c, x + 1, hi, 1, lo - hi + 1, col); px(c, x, 26 - Math.max(cd.o, cd.c), 3, Math.max(1, Math.abs(cd.c - cd.o)), col);
     });
     px(c, 34, 30, 5, 5, DARK); px(c, 30, 34, 13, 2, '#444a5e'); px(c, 35, 30, 3, 4, '#444a5e');
-    c.save(); c.translate(-9, 0);
+    c.save(); c.translate(Math.round(-9 * S), 0);
     personBody(c, o); personArms(c, o); personHead(c, o);
     px(c, 12, 41, 26, 3, DARK); px(c, 13, 41, 24, 2, '#444a5e');
     if (!up) hand(c, o.L[0], o.L[1]); else hand(c, o.L[0], o.L[1]);
@@ -194,7 +194,6 @@ const SCENES = {
     const q = flip ? clamp01((a.u - 0.15) / 0.7) : 0;
     if (flip && a.u > .1 && a.u < .9) o.R = [24 + Math.cos(q * Math.PI) * 11, 41 - Math.sin(q * Math.PI) * 3];
     // lámpara cálida
-    c.globalAlpha = .16; tri(c, [9, 35, 21, 35, 27, 47], '#ffd966'); tri(c, [9, 35, 21, 35, 13, 47], '#ffd966'); c.globalAlpha = 1;
     deskTop(c, '#7a5a3a', '#9a7650');
     personBody(c, o); personArms(c, o); personHead(c, o);
     // libro abierto
@@ -208,9 +207,7 @@ const SCENES = {
     }
     hand(c, o.L[0], o.L[1]); hand(c, o.R[0], o.R[1]);
     if (writing) { const x = Math.round(o.R[0]), y = Math.round(o.R[1]); px(c, x + 1, y - 1, 1, 1, '#ffd966'); px(c, x + 2, y - 2, 1, 1, '#ffd966'); px(c, x + 3, y - 3, 1, 1, '#ffd966'); px(c, x + 4, y - 4, 1, 1, '#ff8fa3'); px(c, x, y, 1, 1, DARK); }
-    // lámpara y libros apilados
-    px(c, 1, 42, 7, 2, DARK); px(c, 2, 42, 5, 1, '#444a5e'); px(c, 3, 30, 2, 12, DARK); px(c, 3, 31, 1, 11, '#444a5e'); px(c, 3, 29, 10, 2, DARK); px(c, 4, 29, 8, 1, '#444a5e');
-    tri(c, [9, 30, 18, 30, 13, 36], DARK); tri(c, [10, 31, 17, 31, 13, 35], '#ffd966');
+    // libros apilados (la lámpara es parte de la habitación)
     rr2(c, 37, 39, 9, 3, '#c8344f'); rr2(c, 38, 36, 8, 3, '#4a7bd0'); rr2(c, 37, 33, 9, 3, '#3ddc84');
     if (paused) { px(c, 40, 8, 3, 1, '#fff'); px(c, 41, 9, 1, 1, '#fff'); px(c, 40, 10, 3, 1, '#fff'); }
   },
