@@ -49,6 +49,17 @@
     r.style.setProperty('--lm-tint', g.tint);
   });
   setGlass(/*__LM_GLASS_ON__*/null);
+  // YouTube Music con Cristal: la línea de tiempo se dibuja sobre el borde curvo de la cápsula (CSS) con el avance en --lm-p
+  let progObs = null;
+  const glassProgress = () => {
+    const sl = document.querySelector('ytmusic-player-bar #progress-bar');
+    if (!sl || progObs?.el === sl) return;
+    progObs?.disconnect();
+    const put = () => { const max = +sl.getAttribute('aria-valuemax') || 0; document.documentElement.style.setProperty('--lm-p', max ? Math.min(1, (+sl.getAttribute('aria-valuenow') || 0) / max).toFixed(4) : 0); };
+    progObs = new MutationObserver(put); progObs.el = sl;
+    progObs.observe(sl, { attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuemax'] });
+    put();
+  };
 
   // Funciones llamadas desde Rust (bandeja y reproductor flotante)
   // Volumen elegido desde el flotante. YouTube lo reinicia solo (cambio de canción, normalización de volumen...),
@@ -243,7 +254,7 @@
   const tick = async () => {
     clearTimeout(timer);
     try {
-      if (!SP) youThere();
+      if (!SP) { youThere(); glassProgress(); }
       const n = snapshot();
       if (changed(n)) { sent = n; sentAt = Date.now(); wanted = await invoke('report_state', n); }
     } catch (_) {}

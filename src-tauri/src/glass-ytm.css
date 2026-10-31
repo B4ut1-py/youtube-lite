@@ -15,7 +15,7 @@
   --g-div: rgba(255, 255, 255, .1); --g-scroll: rgba(255, 255, 255, .14); --g-track: rgba(255, 255, 255, .16);
   /* capa que flota sobre contenido (menús, sugerencias, diálogos, avisos): vidrio casi opaco con el tono del fondo */
   --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #000) 93%, transparent);
-  --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 70%, #000) 93%, transparent);
+  --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 70%, #000) 97%, transparent);
   --g-veil: rgba(10, 10, 16, .6); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 75%, #000) 97%, transparent);
   --g-layer-shadow: 0 16px 32px -10px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .2);
 }
@@ -31,7 +31,7 @@ html.lm-light:root {
   --g-text: #14161f; --g-text-2: rgba(20, 22, 31, .72); --g-sel: rgba(20, 22, 31, .88); --g-sel-text: #fff;
   --g-div: rgba(20, 24, 40, .12); --g-scroll: rgba(20, 24, 40, .22); --g-track: rgba(20, 24, 40, .16);
   --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 94%, transparent);
-  --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 45%, #fff) 94%, transparent);
+  --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 45%, #fff) 97%, transparent);
   --g-veil: rgba(255, 255, 255, .55); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 97%, transparent);
   --ytmusic-text-primary: #14161f; --ytmusic-text-secondary: rgba(20, 22, 31, .72); --ytmusic-text-disabled: rgba(20, 22, 31, .45);
   --ytmusic-text-primary-inverse: #fff;
@@ -167,14 +167,21 @@ ytmusic-player-bar .thumbnail-image-wrapper, ytmusic-player-bar .image { border-
 
 /* ---------- 5. Progreso y volumen ---------- */
 #progress-bar #primaryProgress, #volume-slider #primaryProgress { background: linear-gradient(90deg, #ff8aac, var(--g-accent)) !important; }
-#progress-bar #primaryProgress { box-shadow: 0 0 10px rgba(255, 61, 110, .6); }
-#progress-bar #progressContainer { background: var(--g-track) !important; }
-/* línea de tiempo dentro de la cápsula: 24px de margen parejo a los lados y 12px bajo el borde de arriba, lejos de las esquinas; al engordar sigue adentro */
-ytmusic-player-bar #progress-bar { left: 24px !important; right: 24px !important; width: auto !important; top: 13px !important; }
+/* línea de tiempo sobre el borde de la cápsula: sigue el canto de arriba y sus dos curvas.
+   Se dibuja en #player-bar-background::before con el avance que pone inject.js (--lm-p, de 0 a 1);
+   el control real de YouTube queda encima, invisible, para hacer clic y arrastrar. */
+#player-bar-background::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+  border: 3px solid transparent; box-sizing: border-box; transition: border-width .15s;
+  background: linear-gradient(90deg, #ff8aac, var(--g-accent) calc(var(--lm-p, 0) * 100%), var(--g-track) calc(var(--lm-p, 0) * 100%)) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  clip-path: inset(0 0 calc(100% - 22px) 0); }   /* solo el canto de arriba: termina donde la curva se vuelve vertical */
+ytmusic-app-layout:has(#progress-bar:hover, #progress-bar[dragging]) #player-bar-background::before { border-width: 5px; }
+ytmusic-player-bar #progress-bar { left: 0 !important; right: 0 !important; width: auto !important; top: -15px !important; }
 ytmusic-player-bar #progress-bar #sliderContainer { margin: 0 !important; width: 100% !important; }
 ytmusic-player-bar #progress-bar .bar-container { left: 0 !important; right: 0 !important; }
-#progress-bar #primaryProgress, #progress-bar #progressContainer, #progress-bar #secondaryProgress { border-radius: 999px; }
-#progress-bar .slider-knob-inner, #volume-slider .slider-knob-inner { background: #fff !important; border-color: #fff !important;
+ytmusic-player-bar #progress-bar :is(#progressContainer, #primaryProgress, #secondaryProgress, .slider-knob) { opacity: 0 !important; }
+#volume-slider #primaryProgress { border-radius: 999px; }
+#volume-slider .slider-knob-inner { background: #fff !important; border-color: #fff !important;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, .2), 0 1px 6px rgba(0, 0, 0, .3); }
 
 /* ---------- 6. Barras de desplazamiento finas y translúcidas ---------- */
