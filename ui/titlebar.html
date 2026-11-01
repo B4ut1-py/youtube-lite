@@ -11,8 +11,13 @@
   html, body { margin: 0; height: 100%; overflow: hidden; user-select: none; -webkit-user-select: none; }
   body { background: var(--bar); color: var(--text); font: 12.5px var(--font); }
   header { height: 40px; display: flex; align-items: center; gap: 8px; padding-left: 12px; border-bottom: 1px solid var(--line); box-sizing: border-box; }
-  .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 13px; white-space: nowrap; }
-  .brand img { width: 18px; height: 18px; } .brand em { font-style: normal; color: var(--accent); }
+  /* solo el logo; con el mouse encima el nombre aparece hacia la derecha. Abre el repositorio en GitHub */
+  .brand { display: flex; align-items: center; height: 30px; padding: 0 6px; margin-left: -6px; border: 0; border-radius: 7px; background: transparent;
+    color: var(--text); font: 650 13px var(--font); white-space: nowrap; cursor: pointer; }
+  .brand img { width: 18px; height: 18px; flex: none; } .brand em { font-style: normal; color: var(--accent); }
+  .brand span { max-width: 0; opacity: 0; overflow: hidden; transform: translateX(-6px); transition: max-width .25s ease, opacity .2s, transform .25s ease, margin .25s; }
+  .brand:hover span, .brand:focus-visible span { max-width: 90px; opacity: 1; transform: none; margin-left: 8px; }
+  .brand:hover { background: var(--hover); }
   .seg { display: flex; background: var(--seg); border-radius: 8px; padding: 2px; margin-left: 8px; }
   .seg button { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
   .seg button.on { background: var(--segOn); color: var(--text); box-shadow: 0 1px 2px #0005; }
@@ -50,7 +55,7 @@
   html.glass .seg button:not(.on):hover { background: var(--hover); color: var(--text); }
   html.glass .seg button.on { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2), 0 2px 6px rgba(0, 0, 0, .2); }
   html.glass.light .brand em { color: #c8164a; }
-  html.glass .ic { border-radius: 999px; }
+  html.glass .ic, html.glass .brand { border-radius: 999px; }
   html.glass .ic:hover, html.glass .ic.on { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
   html.glass .ic .dot { box-shadow: 0 0 0 1.5px var(--rim); }
   html.glass .chips button, html.glass .pill { box-shadow: inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim2); }
@@ -60,7 +65,7 @@
 <body>
 <div class="rz n" data-dir="North"></div><div class="rz nw" data-dir="NorthWest"></div><div class="rz ne" data-dir="NorthEast"></div>
 <header data-tauri-drag-region>
-  <div class="brand" data-tauri-drag-region><img src="logo.png" alt="" data-tauri-drag-region>Lite <em>Music</em></div>
+  <button class="brand" id="brand" title="Lite Music en GitHub"><img src="logo.png" alt=""><span>Lite <em>Music</em></span></button>
   <div class="seg" id="seg">
     <button data-src="ytm"><i class="y"></i>YouTube Music</button>
     <button data-src="spotify"><i class="s"></i>Spotify</button>
@@ -102,6 +107,7 @@ $('pomo').onclick = () => toggle('pomo');
 $('float').onclick = () => act('float');
 $('cfg').onclick = () => act('cfg');
 $('upd').onclick = () => act('upd');
+$('brand').onclick = () => inv('open_link', { which: 'repo' });
 $('min').onclick = () => inv('plugin:window|minimize', { label: 'main' });
 $('max').onclick = () => inv('plugin:window|toggle_maximize', { label: 'main' });
 $('close').onclick = () => inv('plugin:window|close', { label: 'main' });

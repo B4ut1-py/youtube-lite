@@ -135,7 +135,9 @@
   /* Cristal: un solo color liso para la isla y sus aletas (el color medio de la carátula, o el fondo de la app); la carátula
      desenfocada no se puede continuar en las aletas y además dejaba un borde de otro color */
   html.glass:not(.screen) body.fmt-island { --isl-bg: var(--isl-avg, rgba(30, 30, 40, .9)); }
-  html.appbg body.fmt-island { --isl-bg: color-mix(in srgb, var(--lm-tint) 85%, #000); }
+  /* con el fondo de la app, el mismo color que la barra de arriba de la ventana (va después y con el mismo peso que la regla de arriba: gana) */
+  html.glass.appbg:not(.screen) body.fmt-island { --isl-bg: color-mix(in srgb, var(--lm-tint) 75%, #000); }
+  html.glass.appbg.light:not(.screen) body.fmt-island { --isl-bg: color-mix(in srgb, var(--lm-tint) 40%, #fff); }
   body.fmt-island #art { display: none !important; }
   body.fmt-island .card { --f: 14px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 230px; height: 34px;
     padding: 0 14px 2px 8px; gap: 9px; align-items: center; border: 0; border-radius: 0 0 18px 18px; background: var(--isl-bg) !important;
@@ -382,7 +384,8 @@ function render(st) {
     }
     if (CFG.format !== format) {                                   // el ultra compacto muestra siempre la carátula: se vuelve a elegir el aspecto
       format = CFG.format || 'normal'; skin = ''; shownTitle = null; if (format === 'island') islAvg(cover);
-      document.body.classList.remove('fmt-normal', 'fmt-compact', 'fmt-mini'); document.body.classList.add('fmt-' + format);
+      // al salir de la isla también se van sus estados (abierta, cerrándose): si quedaban, el formato nuevo se veía roto
+      document.body.classList.remove('fmt-normal', 'fmt-compact', 'fmt-mini', 'fmt-island', 'isl-open', 'isl-ready', 'isl-closing'); document.body.classList.add('fmt-' + format);
     }
   }
   if (st.skin !== skin) {
