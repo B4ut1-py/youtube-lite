@@ -129,24 +129,25 @@
   /* Isla: pliegue pegado al borde de arriba de la pantalla, con el estilo elegido (Normal, Cristal o Transparente).
      Cerrada muestra carátula, título y barritas; al pasar el mouse la ventana crece (Rust) y se despliega como el
      reproductor normal: carátula grande a la izquierda y el resto a la derecha. */
-  body.fmt-island { padding: 0; align-items: flex-start; --isl-bg: var(--card); --isl-fin: var(--isl-bg); }
+  body.fmt-island { padding: 0; align-items: flex-start; --isl-bg: var(--card); }
   html.glass.screen body.fmt-island { --isl-bg: rgba(18, 18, 26, .42); }
   html.glass.screen.light body.fmt-island { --isl-bg: rgba(255, 255, 255, .55); }
-  html.glass:not(.screen) body.fmt-island { --isl-bg: transparent; --isl-fin: var(--isl-avg, rgba(30, 30, 40, .9)); }   /* Cristal: la carátula desenfocada (#art); las aletas, su color medio */
-  html.appbg body.fmt-island { --isl-fin: color-mix(in srgb, var(--lm-tint) 85%, #000); }
-  html.appbg body.fmt-island #art { background: var(--isl-fin) !important; }
+  /* Cristal: un solo color liso para la isla y sus aletas (el color medio de la carátula, o el fondo de la app); la carátula
+     desenfocada no se puede continuar en las aletas y además dejaba un borde de otro color */
+  html.glass:not(.screen) body.fmt-island { --isl-bg: var(--isl-avg, rgba(30, 30, 40, .9)); }
+  html.appbg body.fmt-island { --isl-bg: color-mix(in srgb, var(--lm-tint) 85%, #000); }
+  body.fmt-island #art { display: none !important; }
   body.fmt-island .card { --f: 14px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 230px; height: 34px;
     padding: 0 14px 2px 8px; gap: 9px; align-items: center; border: 0; border-radius: 0 0 18px 18px; background: var(--isl-bg) !important;
     box-shadow: 0 6px 16px rgba(0, 0, 0, .28); overflow: visible;
     transition: width .32s cubic-bezier(.3, 1.25, .5, 1), height .32s cubic-bezier(.3, 1.25, .5, 1), border-radius .32s, padding .32s; }
   html.glass body.fmt-island .card::before, html.glass body.fmt-island .card::after { display: none; }
-  body.fmt-island #art { border-radius: inherit; } body.fmt-island #art::after { border-radius: inherit; }
   body.fmt-island #vcol, body.fmt-island #badge { display: none !important; }
   /* aletas cóncavas que unen la isla con el borde de la pantalla, del mismo color que la isla */
   .fin { display: none; }
   body.fmt-island .fin { display: block; position: absolute; top: 0; width: var(--f); height: var(--f); transition: width .32s, height .32s; }
-  body.fmt-island .fin.l { left: calc(-1 * var(--f)); background: radial-gradient(circle at 0 100%, transparent var(--f), var(--isl-fin) calc(var(--f) + .5px)); }
-  body.fmt-island .fin.r { right: calc(-1 * var(--f)); background: radial-gradient(circle at 100% 100%, transparent var(--f), var(--isl-fin) calc(var(--f) + .5px)); }
+  body.fmt-island .fin.l { left: calc(-1 * var(--f)); background: radial-gradient(circle at 0 100%, transparent var(--f), var(--isl-bg) calc(var(--f) + .5px)); }
+  body.fmt-island .fin.r { right: calc(-1 * var(--f)); background: radial-gradient(circle at 100% 100%, transparent var(--f), var(--isl-bg) calc(var(--f) + .5px)); }
   body.fmt-island .tile { width: 22px; height: 22px; border-radius: 50%; background: none; transition: width .32s, height .32s, border-radius .32s; }
   body.fmt-island #cover { border-radius: inherit; }
   body.fmt-island .info { flex-direction: row; align-items: center; gap: 6px; }
