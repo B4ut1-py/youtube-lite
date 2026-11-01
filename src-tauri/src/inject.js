@@ -55,7 +55,9 @@
     const sl = document.querySelector('ytmusic-player-bar #progress-bar');
     if (!sl || progObs?.el === sl) return;
     progObs?.disconnect();
-    const put = () => { const max = +sl.getAttribute('aria-valuemax') || 0; document.documentElement.style.setProperty('--lm-p', max ? Math.min(1, (+sl.getAttribute('aria-valuenow') || 0) / max).toFixed(4) : 0); };
+    // en la barra y no en la raíz: cambiar una variable de <html> cada segundo recalcula los estilos de toda la página
+    const put = () => { const bg = document.getElementById('player-bar-background'), max = +sl.getAttribute('aria-valuemax') || 0;
+      bg?.style.setProperty('--lm-p', max ? Math.min(1, (+sl.getAttribute('aria-valuenow') || 0) / max).toFixed(4) : 0); };
     progObs = new MutationObserver(put); progObs.el = sl;
     progObs.observe(sl, { attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuemax'] });
     put();
@@ -298,6 +300,19 @@
     return out;
   };
   const ytmPlay = (it) => document.querySelector('ytmusic-app')?.dispatchEvent(new CustomEvent('yt-navigate', { bubbles: true, composed: true, detail: { endpoint: it.ep } }));
+  // consultas de Spotify en curso (las usa la búsqueda para saber cuándo llegaron los resultados nuevos)
+  const spNet = { pending: 0, count: 0 };
+  if (SP && window.fetch) {
+    const f0 = window.fetch;
+    window.fetch = function (input, ...rest) {
+      const p = f0.call(this, input, ...rest);
+      if (String(input?.url || input).includes('/pathfinder/')) {
+        spNet.pending++; spNet.count++;
+        p.then(() => {}, () => {}).finally(() => { spNet.pending--; });
+      }
+      return p;
+    };
+  }
   const SP_PATH = { songs: '/tracks', albums: '/albums', artists: '/artists', playlists: '/playlists' };
   const spGo = (path) => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate', { state: {} })); };
   // resultados: filas (Todo), filas de canciones (Canciones) o tarjetas con su botón de play (Álbumes, Artistas, Listas)
@@ -326,23 +341,41 @@
   const spSearch = async (q, kind) => {
     const path = '/search/' + encodeURIComponent(q) + (SP_PATH[kind] || '');
     const here = location.pathname.replace(/^\/intl-[^/]+/, '') === path;
-    const old = spNodes()[0];
-    if (!here) spGo(path);
-    let nodes = spNodes();
-    for (let i = 0; i < 50 && !(nodes.length && (here || nodes[0] !== old)); i++) { await wait(120); nodes = spNodes(); }
-    return nodes.slice(0, 12).map((n) => spItem(n, kind));
+    if (!here) {
+      // Spotify deja los resultados anteriores hasta que responde su consulta (pathfinder): se espera a que no quede
+      // ninguna pendiente y a que la página quede quieta 200 ms. Si a los 500 ms no pidió nada, los tenía guardados.
+      const view = document.querySelector('#main-view') || document.body;
+      let last = Date.now();
+      const mo = new MutationObserver(() => { last = Date.now(); });
+      mo.observe(view, { childList: true, subtree: true });
+      const asked = spNet.count;
+      spGo(path);
+      const t0 = Date.now();
+      const ready = () => spNodes().length && spNet.pending === 0 && Date.now() - last > 200 && (spNet.count > asked || Date.now() - t0 > 500);
+      while (Date.now() - t0 < 7000 && !ready()) await wait(80);
+      mo.disconnect();
+    }
+    return spNodes().slice(0, 12).map((n) => spItem(n, kind));
   };
   const spPlay = async (it) => {
     const n = spNodes().find((x) => spHref(x) === it.href);
-    if (n && !it.round) {                                       // canción o lista: doble clic en la fila o el play de la tarjeta, como en Spotify
-      const b = n.querySelector('[data-testid="play-button"]');
-      return b ? b.click() : n.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    }
-    spGo(it.href.replace(/^\/intl-[^/]+/, ''));                // artista (o la lista cambió): abrir su página y tocar su play
+    // canción o lista: doble clic en la fila, o el play de la tarjeta. El resultado principal (fila con su propio play)
+    // solo responde a un clic real del mouse: ese se abre y se reproduce desde su página, como los artistas.
+    // si el resultado principal también aparece como fila común, se reproduce desde ahí (sin abrir su página)
+    const twin = !it.round && spNodes().find((x) => x !== n && spHref(x) === it.href && !x.querySelector('[data-testid="play-button"]'));
+    if (twin) return twin.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    const own = n?.querySelector('[data-testid="play-button"]');
+    if (n && !it.round && !(own && n.matches('[data-encore-id="listRow"]'))) return own ? own.click() : n.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    // artista o resultado principal: abrir su página y tocar su play. Se espera a que la página sea la nueva (si ya
+    // había otra con botón de play, se tocaba ese y sonaba otra cosa).
+    const target = it.href.replace(/^\/intl-[^/]+/, ''), playBtn = () => document.querySelector('#main-view [data-testid="action-bar-row"] [data-testid="play-button"]');
+    const old = playBtn();
+    spGo(target);
     for (let i = 0; i < 40; i++) {
       await wait(150);
-      const b = document.querySelector('#main-view [data-testid="action-bar-row"] [data-testid="play-button"]');
-      if (b) return b.click();
+      if (!location.pathname.replace(/^\/intl-[^/]+/, '').startsWith(target)) continue;
+      const b = playBtn();
+      if (b && (b !== old || i > 12)) return b.click();
     }
   };
   window.__lm.search = async (q, kind, seq) => {

@@ -16,7 +16,7 @@
   /* capa que flota sobre contenido (menús, sugerencias, diálogos, avisos): vidrio casi opaco con el tono del fondo */
   --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #000) 93%, transparent);
   --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 70%, #000) 97%, transparent);
-  --g-veil: rgba(10, 10, 16, .6); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 75%, #000) 97%, transparent);
+  --g-veil: rgba(10, 10, 16, .6); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #262a3d) 75%, #000) 97%, transparent); --g-pill: color-mix(in srgb, var(--lm-tint, #262a3d) 78%, #000);
   --g-layer-shadow: 0 16px 32px -10px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .2);
 }
 /* ---------- 0. Modo claro (html.lm-light): vidrio blanco translúcido y texto oscuro, por las variables del sitio ---------- */
@@ -32,7 +32,7 @@ html.lm-light:root {
   --g-div: rgba(20, 24, 40, .12); --g-scroll: rgba(20, 24, 40, .22); --g-track: rgba(20, 24, 40, .16);
   --g-layer: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 94%, transparent);
   --g-bar: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 45%, #fff) 97%, transparent);
-  --g-veil: rgba(255, 255, 255, .55); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 97%, transparent);
+  --g-veil: rgba(255, 255, 255, .55); --g-topveil: color-mix(in srgb, color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff) 97%, transparent); --g-pill: color-mix(in srgb, var(--lm-tint, #dfe3ee) 40%, #fff);
   --ytmusic-text-primary: #14161f; --ytmusic-text-secondary: rgba(20, 22, 31, .72); --ytmusic-text-disabled: rgba(20, 22, 31, .45);
   --ytmusic-text-primary-inverse: #fff;
   --ytmusic-icon-inactive: #4a4e5c; --ytmusic-icon-disabled: rgba(20, 22, 31, .35);
@@ -93,9 +93,10 @@ ytmusic-browse-response .background-gradient { background: none !important; }
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 
 /* ---------- 2. Paneles flotantes ---------- */
-/* barra superior: sin franja; solo un velo desenfocado que se desvanece hacia abajo */
-#nav-bar-background { background: linear-gradient(var(--g-topveil) 80%, transparent) !important;
-  -webkit-mask-image: linear-gradient(#000 85%, transparent); mask-image: linear-gradient(#000 85%, transparent); box-shadow: none !important; }
+/* barra superior: sin franja ni línea; al desplazar, solo un velo suave y el contenido pasa por debajo de las cápsulas */
+#nav-bar-background { background: linear-gradient(color-mix(in srgb, var(--g-topveil) 85%, transparent) 40%, transparent) !important;
+  -webkit-mask-image: none !important; mask-image: none !important; box-shadow: none !important; border-bottom: 0 !important; }
+#mini-guide-background { border-right: 0 !important; }
 #nav-bar-divider { display: none !important; }
 /* menú lateral: panel de vidrio flotante con esquinas grandes */
 #guide-wrapper { border: 0 !important; box-shadow: none !important; }
@@ -141,7 +142,7 @@ ytmusic-chip-cloud-chip-renderer[is-selected] a.yt-simple-endpoint, ytmusic-chip
 /* buscador: la sombra va en el host (antes estaba dentro de un contenedor con overflow:hidden y quedaba cuadrada); abierto, pastilla y sugerencias son un solo vidrio */
 ytmusic-search-box { border-radius: 999px; box-shadow: var(--g-shadow); }
 ytmusic-search-box .search-container { border-radius: inherit !important; }
-ytmusic-search-box .search-box { background: var(--g-layer) !important; border: 0 !important; border-radius: inherit !important;
+ytmusic-search-box .search-box { background: var(--g-pill) !important; border: 0 !important; border-radius: inherit !important;
   box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2) }
 /* sugerencias: capa de vidrio casi opaca (≥ .9), separada 4px de la pastilla; antes se mezclaba con la página de abajo */
 ytmusic-search-box[opened] .search-container { overflow: visible !important; }
@@ -341,3 +342,14 @@ ytmusic-player-page ytmusic-player-queue-item .thumbnail-overlay, ytmusic-player
    de WebView2. Un color del tono del fondo (plano: no se repinta al desplazar) deja la franja integrada. */
 html.lm-glass { background: color-mix(in srgb, var(--lm-tint, #262a3d) 72%, #000) !important; }
 html.lm-glass.lm-light { background: color-mix(in srgb, var(--lm-tint, #dfe3ee) 85%, #fff) !important; }
+
+/* Fila de arriba en cápsulas: marca (☰ + logo), buscador y la derecha (transmitir + cuenta), opacas para que el contenido
+   que pasa por debajo no se lea a través. Los paneles del menú (completo y mini) empiezan debajo de esa fila. */
+#mini-guide-renderer::before, #mini-guide-renderer::after, #guide-wrapper::before, #guide-wrapper::after { top: 64px !important; height: calc(100vh - 72px) !important; }
+ytmusic-app-layout[player-visible] :is(#mini-guide-renderer, #guide-wrapper)::before,
+ytmusic-app-layout[player-visible] :is(#mini-guide-renderer, #guide-wrapper)::after { height: calc(100vh - 80px - var(--ytmusic-player-bar-height)) !important; }
+ytmusic-nav-bar #left-content, ytmusic-nav-bar ytmusic-cast-button { position: relative; }
+ytmusic-nav-bar #left-content::before, ytmusic-nav-bar ytmusic-cast-button::before { content: ""; position: absolute; z-index: -1; pointer-events: none; border-radius: 999px;
+  background: var(--g-pill); box-shadow: inset 0 1px 0 var(--g-rim), inset 0 -1px 0 var(--g-rim-2), 0 4px 12px rgba(0, 0, 0, .18); }
+ytmusic-nav-bar #left-content::before { left: 8px; top: 12px; width: 143px; height: 40px; }   /* ☰ (16-56) y logo (68-139) */
+ytmusic-nav-bar ytmusic-cast-button::before { left: -8px; top: -4px; width: 98px; height: 40px; }   /* transmitir (40) + espacio + cuenta (26) */
