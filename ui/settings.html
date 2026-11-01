@@ -179,6 +179,9 @@ const TABS = [
     ]],
     ['Atajos de teclado', [{ type: 'keys' }]] ] },
   { id: 'perf', name: 'Rendimiento', sections: [
+    ['', [
+      { type: 'toggle', key: 'audio_only', label: 'Solo audio', desc: 'Sin videoclips en YouTube Music ni videos de fondo en Spotify. Con la ventana abierta gasta mucho menos procesador.' },
+    ]],
     ['Con la ventana oculta', [
       { type: 'toggle', key: 'idle_webview', label: 'Ahorrar memoria', desc: 'Libera memoria mientras la app está en la bandeja.' },
       { type: 'toggle', key: 'idle_hide_ui', label: 'No dibujar la página', desc: 'La música sigue. Apagalo si algo no responde al volver.' },
