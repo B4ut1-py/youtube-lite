@@ -489,25 +489,33 @@ fn fullscreen_busy() -> bool {
     false
 }
 
-// ¿La ventana activa está maximizada en la pantalla principal (la de la isla)? None = es una ventana propia que no es la
-// principal (la isla recién usada, la búsqueda): se mantiene lo que había.
+// ¿La ventana que está justo debajo de la isla (arriba al centro de la pantalla principal) está maximizada? Se recorren
+// las ventanas de adelante hacia atrás sin depender de cuál está activa: un clic en la barra de tareas o en la isla no cambia
+// lo que hay debajo. Se saltan el flotante y la búsqueda (la ventana de la app sí cuenta), las ocultas y las "fantasma".
 #[cfg(windows)]
-fn maximized_on_primary(app: &AppHandle) -> Option<bool> {
-    use windows::Win32::{Foundation::POINT, Graphics::Gdi::{MonitorFromPoint, MonitorFromWindow, MONITOR_DEFAULTTONULL, MONITOR_DEFAULTTOPRIMARY},
-        UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, IsZoomed}};
+fn maximized_under_island(app: &AppHandle) -> bool {
+    use windows::Win32::{Foundation::{HWND, RECT}, Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED},
+        UI::WindowsAndMessaging::{GetTopWindow, GetWindow, GetWindowRect, IsWindowVisible, IsZoomed, GW_HWNDNEXT}};
+    let Some(m) = app.primary_monitor().ok().flatten() else { return false };
+    let (x, y) = (m.position().x + m.size().width as i32 / 2, m.position().y + 2);
+    let skip: Vec<isize> = ["float", "search"].iter().filter_map(|l| app.get_webview_window(l)?.hwnd().ok()).map(|h| h.0 as isize).collect();
     unsafe {
-        let h = GetForegroundWindow();
-        let mut pid = 0;
-        GetWindowThreadProcessId(h, Some(&mut pid));
-        if pid == std::process::id() && main_win(app).and_then(|w| w.hwnd().ok()).map_or(true, |m| m.0 as isize != h.0 as isize) {
-            return None;
+        let mut h = GetTopWindow(None).unwrap_or(HWND::default());
+        while !h.is_invalid() {
+            let (mut r, mut cloaked) = (RECT::default(), 0u32);
+            let _ = DwmGetWindowAttribute(h, DWMWA_CLOAKED, &mut cloaked as *mut u32 as _, 4);
+            if !skip.contains(&(h.0 as isize)) && IsWindowVisible(h).as_bool() && cloaked == 0
+                && GetWindowRect(h, &mut r).is_ok() && x >= r.left && x < r.right && y >= r.top && y < r.bottom {
+                return IsZoomed(h).as_bool();
+            }
+            h = GetWindow(h, GW_HWNDNEXT).unwrap_or(HWND::default());
         }
-        Some(IsZoomed(h).as_bool() && MonitorFromWindow(h, MONITOR_DEFAULTTONULL) == MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY))
     }
+    false
 }
 #[cfg(not(windows))]
-fn maximized_on_primary(_app: &AppHandle) -> Option<bool> {
-    Some(false)
+fn maximized_under_island(_app: &AppHandle) -> bool {
+    false
 }
 
 // Isla finita: con el mouse quieto medio segundo sobre ella se despliega; abierta, se repliega cuando el mouse sale
@@ -707,7 +715,7 @@ fn start_ticker(app: AppHandle) {
         if changed || !float_in_sync(&app) {
             apply_float_visibility(&app);
         }
-        let thin = st.settings.lock().unwrap().format == "island" && maximized_on_primary(&app).unwrap_or(ISL_THIN.load(SeqCst));
+        let thin = st.settings.lock().unwrap().format == "island" && maximized_under_island(&app);
         ISL_THIN.store(thin, SeqCst);
         if let Some(f) = app.get_webview_window("float") {
             let _ = f.set_ignore_cursor_events(thin && !ISL_OPEN.load(SeqCst));
