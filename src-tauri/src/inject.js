@@ -19,6 +19,8 @@
     html.lm-hidden ytmusic-player-page, html.lm-hidden #player { visibility: hidden !important; }
     /* Modo ahorro: sin dibujar nada de la interfaz (el audio, el <video> y los tiempos siguen funcionando) */
     html.lm-full body { display: none !important; }
+    /* Solo audio: el video de fondo de Spotify (Canvas) queda pausado y oculto; se ve la carátula de atrás */
+    video.lm-novideo { visibility: hidden !important; }
   `;
   // El script corre al crear el documento: puede que aún no exista <html>.
   const whenRoot = (fn) => {
@@ -193,7 +195,7 @@
     seek: (f) => spSeek(f),
     setHidden: (h, full) => {
       lmHidden = h;
-      document.querySelectorAll('video').forEach((v) => { if (v.muted) h ? v.pause() : v.play().catch(() => {}); });
+      document.querySelectorAll('video').forEach((v) => { if (v.muted && !v.classList.contains('lm-novideo')) h ? v.pause() : v.play().catch(() => {}); });
       const r = document.documentElement; if (!r) return; r.classList.toggle('lm-hidden', h); r.classList.toggle('lm-full', !!full);
     },
     glass: setGlass,
@@ -253,10 +255,28 @@
     const b = d.querySelector('ytmusic-you-there-renderer yt-button-renderer[dialog-confirm]');
     (b?.querySelector('button') || b)?.click();
   };
+  // Solo audio (opcional, prendido de fábrica): sin videoclips en YouTube Music ni videos de fondo (Canvas) en Spotify.
+  // Con la ventana abierta un video gasta varias veces más procesador que la música sola (medido: 1,1 % → 0,4 % y 4,1 % → 0,5 %).
+  let audioOnly = /*__LM_AUDIO_ONLY__*/true;
+  const noVideo = (e) => {
+    if (!audioOnly) return;
+    if (SP) {   // el Canvas es un <video> sin sonido dentro de la página; la música no pasa por ahí
+      const v = e?.target; if (v?.tagName === 'VIDEO' && v.muted) { v.pause(); v.classList.add('lm-novideo'); }
+    } else {    // la versión "Canción" del mismo tema: YouTube Music sigue desde el mismo segundo
+      const t = document.querySelector('ytmusic-av-toggle');
+      if (t && t.getAttribute('is-video-playback-mode-selected') === 'true' && !t.hasAttribute('toggle-disabled')) t.querySelector('.song-button')?.click();
+    }
+  };
+  ['play', 'loadedmetadata'].forEach((ev) => document.addEventListener(ev, noVideo, true));
+  window.__lm.audioOnly = (v) => {
+    audioOnly = v;
+    if (v) SP ? document.querySelectorAll('video').forEach((x) => noVideo({ target: x })) : noVideo();
+    else document.querySelectorAll('video.lm-novideo').forEach((x) => { x.classList.remove('lm-novideo'); x.play().catch(() => {}); });
+  };
   const tick = async () => {
     clearTimeout(timer);
     try {
-      if (!SP) { youThere(); glassProgress(); }
+      if (!SP) { youThere(); glassProgress(); noVideo(); }
       const n = snapshot();
       if (changed(n)) { sent = n; sentAt = Date.now(); wanted = await invoke('report_state', n); }
     } catch (_) {}
