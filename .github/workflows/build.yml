@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore: ['README.md', 'preview.png']
+    paths-ignore: ['README.md', 'preview.png', 'docs/**']
 
 permissions:
   contents: write
