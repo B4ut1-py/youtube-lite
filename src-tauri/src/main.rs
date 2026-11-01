@@ -227,8 +227,8 @@ fn choose_source(app: AppHandle, source: String) {
 #[tauri::command]
 fn open_link(which: String) {
     let url = match which.as_str() {
-        "github" => "https://github.com/B4ut1-py",
-        "repo" => "https://github.com/B4ut1-py/youtube-lite",
+        "github" => "https://github.com/bautista-rubio",
+        "repo" => "https://github.com/bautista-rubio/lite-music",
         "linkedin" => "https://www.linkedin.com/in/bautista-rubio/",
         _ => return,
     };

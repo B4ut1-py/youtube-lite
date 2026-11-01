@@ -3,14 +3,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/B4ut1-py/youtube-lite/releases/latest"><img src="https://img.shields.io/github/v/release/B4ut1-py/youtube-lite?label=versi%C3%B3n&color=ff3d6e" alt="Última versión"></a>
-  <a href="https://github.com/B4ut1-py/youtube-lite/releases"><img src="https://img.shields.io/github/downloads/B4ut1-py/youtube-lite/total?label=descargas&color=7d5cff" alt="Descargas"></a>
+  <a href="https://github.com/bautista-rubio/lite-music/releases/latest"><img src="https://img.shields.io/github/v/release/bautista-rubio/lite-music?label=versi%C3%B3n&color=ff3d6e" alt="Última versión"></a>
+  <a href="https://github.com/bautista-rubio/lite-music/releases"><img src="https://img.shields.io/github/downloads/bautista-rubio/lite-music/total?label=descargas&color=7d5cff" alt="Descargas"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4" alt="Windows 10 y 11">
   <img src="https://img.shields.io/badge/hecho%20con-Tauri%202-24c8db" alt="Hecho con Tauri 2">
 </p>
 
 <p align="center">
-  <a href="https://github.com/B4ut1-py/youtube-lite/releases/latest"><b>⬇ Descargar para Windows</b></a>
+  <a href="https://github.com/bautista-rubio/lite-music/releases/latest"><b>⬇ Descargar para Windows</b></a>
 </p>
 
 ---
@@ -63,7 +63,7 @@ El estilo Cristal le da efecto de vidrio a toda la app, con fondo oscuro, claro 
 
 ## Instalar
 
-1. Descargá `Lite Music_..._x64-setup.exe` desde la [última versión](https://github.com/B4ut1-py/youtube-lite/releases/latest).
+1. Descargá `Lite Music_..._x64-setup.exe` desde la [última versión](https://github.com/bautista-rubio/lite-music/releases/latest).
 2. Ejecutalo. Si Windows muestra "Windows protegió su PC", elegí **Más información → Ejecutar de todos modos**: el instalador no está firmado con un certificado comercial.
 3. Iniciá sesión en YouTube Music o en Spotify dentro de la app, como en el navegador.
 
@@ -77,5 +77,5 @@ Requiere Windows 10 u 11 de 64 bits.
 ---
 
 <p align="center">
-  Proyecto de fin de semana con Claude · Hecho por <a href="https://github.com/B4ut1-py">Bautista Rubio</a>
+  Proyecto de fin de semana con Claude · Hecho por <a href="https://github.com/bautista-rubio">Bautista Rubio</a>
 </p>
