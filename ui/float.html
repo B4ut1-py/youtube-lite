@@ -122,6 +122,50 @@
   body:not(.fmt-normal) #find { display: none; }
   body.fmt-normal .ctr { justify-content: flex-start; }
   .ctr #like { margin: 0 0 0 auto; }
+  /* Isla: pliegue negro pegado al borde de arriba de la pantalla. Cerrada muestra carátula, título y barritas;
+     al pasar el mouse la ventana crece (Rust) y la tarjeta se despliega hacia abajo con los controles. */
+  body.fmt-island { padding: 0; align-items: flex-start; }
+  body.fmt-island .card { --f: 14px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 230px; height: 34px;
+    padding: 0 14px 2px 8px; gap: 9px; align-items: center; border: 0; border-radius: 0 0 18px 18px; background: #000 !important; color: #fff;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .3); isolation: auto;
+    transition: width .32s cubic-bezier(.3, 1.25, .5, 1), height .32s cubic-bezier(.3, 1.25, .5, 1), border-radius .32s, padding .32s; }
+  html.glass body.fmt-island .card::before, html.glass body.fmt-island .card::after { display: none; }
+  body.fmt-island #art, body.fmt-island #vcol, body.fmt-island #badge { display: none !important; }
+  /* aletas cóncavas que unen la isla con el borde de la pantalla */
+  .fin { display: none; }
+  body.fmt-island .fin { display: block; position: absolute; top: 0; width: var(--f); height: var(--f); transition: width .32s, height .32s; }
+  body.fmt-island .fin.l { left: calc(-1 * var(--f)); background: radial-gradient(circle at 0 100%, transparent var(--f), #000 calc(var(--f) + .5px)); }
+  body.fmt-island .fin.r { right: calc(-1 * var(--f)); background: radial-gradient(circle at 100% 100%, transparent var(--f), #000 calc(var(--f) + .5px)); }
+  body.fmt-island .tile { width: 22px; height: 22px; border-radius: 50%; background: none; transition: width .32s, height .32s, border-radius .32s; }
+  body.fmt-island #cover { border-radius: inherit; }
+  body.fmt-island .info { flex-direction: row; align-items: center; gap: 6px; }
+  body.fmt-island .head { flex: 1; min-width: 0; }
+  body.fmt-island #title { margin: 0; font-size: 12px; color: #fff; }
+  body.fmt-island #artist, body.fmt-island #find, body.fmt-island .prog, body.fmt-island .ctr { display: none; }
+  #eq { display: none; gap: 2.5px; align-items: center; height: 14px; flex: none; }
+  body.fmt-island #eq { display: flex; }
+  #eq i { width: 3px; height: 14px; border-radius: 2px; background: #ff3d6e; transform-origin: center; transform: scaleY(.35); }
+  /* barritas: solo se mueven mientras suena, a pocos cuadros por segundo (gasta casi nada) */
+  body.fmt-island:not(.paused) #eq i { animation: eq .9s steps(5) infinite alternate; }
+  #eq i:nth-child(2) { animation-delay: -.3s !important; } #eq i:nth-child(3) { animation-delay: -.6s !important; }
+  #eq i:nth-child(4) { animation-delay: -.15s !important; } #eq i:nth-child(5) { animation-delay: -.45s !important; }
+  @keyframes eq { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
+  body.fmt-island.isl-open .card { --f: 22px; width: 380px; height: 136px; padding: 14px 20px 12px; border-radius: 0 0 34px 34px; align-items: flex-start; }
+  body.fmt-island.isl-open .tile { width: 50px; height: 50px; border-radius: 12px; }
+  body.fmt-island.isl-open .info { flex-direction: column; align-items: stretch; gap: 0; align-self: stretch; }
+  body.fmt-island.isl-open .head { flex: none; margin: 4px 60px 0 0; }
+  body.fmt-island.isl-open #title { font-size: 14px; }
+  body.fmt-island.isl-open #artist { display: block; color: rgba(255, 255, 255, .6); }
+  body.fmt-island.isl-open .prog { display: flex; position: absolute; left: 20px; right: 20px; top: 76px; margin: 0; color: rgba(255, 255, 255, .55); }
+  body.fmt-island.isl-open #bar { background: rgba(255, 255, 255, .18); } body.fmt-island.isl-open #fill { background: #fff; }
+  body.fmt-island.isl-open .ctr { display: flex; position: absolute; left: 62px; right: 20px; bottom: 12px; margin: 0; justify-content: space-between; }
+  body.fmt-island.isl-open #find { display: grid; position: absolute; left: 22px; bottom: 15px; margin: 0; color: rgba(255, 255, 255, .7); }
+  body.fmt-island.isl-open #eq { position: absolute; top: 30px; right: 22px; }
+  body.fmt-island .b, html.glass body.fmt-island :is(#prev, #next, #pp) { color: #fff; background: none; box-shadow: none; }
+  html.glass body.fmt-island #fill { box-shadow: none; }
+  body.fmt-island.isl-open #pp svg { width: 26px; height: 26px; }
+  body.fmt-island.isl-open:not(.isl-ready) .info > *, body.fmt-island.isl-open:not(.isl-ready) #find { opacity: 0; }   /* el contenido aparece cuando termina de crecer */
+  body.fmt-island .info > *, body.fmt-island #find { transition: opacity .15s; }
   /* Cristal con el fondo de la app (opcional): el mismo degradé fijo que YouTube Music, Spotify y las ventanas */
   html.appbg #art img { display: none; }
   html.appbg #art { background: radial-gradient(70% 60% at 12% 8%, color-mix(in srgb, var(--lm-tint) 70%, #fff), transparent 70%),
@@ -158,6 +202,8 @@
     <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7l-1.2-1.2a3.3 3.3 0 0 0 0-4.6z"/></svg>
   </div>
   <div id="badge"></div>
+  <i class="fin l"></i><i class="fin r"></i>
+  <div id="eq"><i></i><i></i><i></i><i></i><i></i></div>
 </div>
 <script>
 const inv = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
@@ -331,7 +377,7 @@ function render(st) {
   if (st.skin !== skin) {
     skin = st.skin; sleeping = null;
     document.body.className = document.body.className.replace(/\b(skin|kind)-\S+/g, '').trim();
-    kind = format === 'mini' ? 'cover' : ['dog', 'cat'].includes(skin) ? 'animal' : (skin === 'cover' || skin === 'none') ? skin : 'mood';
+    kind = format === 'mini' || format === 'island' ? 'cover' : ['dog', 'cat'].includes(skin) ? 'animal' : (skin === 'cover' || skin === 'none') ? skin : 'mood';
     document.body.classList.add('skin-' + skin, 'kind-' + kind);
     drawRoom(skin);
     if (kind === 'animal') drawBody(skin);
@@ -524,6 +570,7 @@ document.body.addEventListener('mousedown', (e) => {
   down = { x: e.screenX, y: e.screenY, onStage: !!e.target.closest('#stage'), moved: false };
 });
 document.body.addEventListener('mousemove', (e) => {
+  if (format === 'island') return;   // la isla tiene lugar fijo
   if (down && !down.moved && Math.hypot(e.screenX - down.x, e.screenY - down.y) > 4) {
     down.moved = true; inv('plugin:window|start_dragging').catch(() => {});
   }
@@ -559,6 +606,24 @@ $('prev').onclick = () => { trigger('prev'); inv('control', { action: 'prev' });
 $('next').onclick = () => { trigger('next'); inv('control', { action: 'next' }); };
 $('like').onclick = () => inv('control', { action: 'like' });
 $('find').onclick = () => inv('control', { action: 'search' });
+// Isla: al entrar el mouse la ventana crece y la tarjeta se despliega; al salir se repliega y después la ventana se achica.
+let islT = null;
+document.documentElement.addEventListener('mouseenter', () => {
+  if (format !== 'island') return;
+  clearTimeout(islT);
+  if (document.body.classList.contains('isl-open')) return;
+  inv('control', { action: 'island', value: 1 });
+  requestAnimationFrame(() => document.body.classList.add('isl-open'));
+  islT = setTimeout(() => document.body.classList.add('isl-ready'), 260);
+});
+document.documentElement.addEventListener('mouseleave', () => {
+  if (format !== 'island') return;
+  clearTimeout(islT);
+  islT = setTimeout(() => {
+    document.body.classList.remove('isl-ready', 'isl-open');
+    islT = setTimeout(() => inv('control', { action: 'island', value: 0 }), 330);
+  }, 250);
+});
 $('bar').onclick = (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   inv('control', { action: 'seek', value: (e.clientX - r.left) / r.width });

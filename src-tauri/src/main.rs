@@ -130,11 +130,22 @@ struct AppState {
     search: Mutex<(u64, Option<serde_json::Value>)>, // búsqueda rápida: número de la última y su respuesta
 }
 
+// Isla desplegada (al pasar el mouse): 380x136 más las aletas y la sombra.
+const ISLAND_OPEN: (f64, f64) = (424.0, 150.0);
+
+// La isla va pegada al borde de arriba, centrada en la pantalla principal (no se arrastra).
+fn place_island(w: &WebviewWindow, size: LogicalSize<f64>) {
+    let Some(m) = w.primary_monitor().ok().flatten() else { return };
+    let phys = size.to_physical::<i32>(m.scale_factor());
+    let _ = w.set_position(PhysicalPosition::new(m.position().x + (m.size().width as i32 - phys.width) / 2, m.position().y));
+}
+
 // Tamaño de la ventana del flotante según su formato: la tarjeta más margen para la sombra y la etiqueta de arriba.
 fn float_size(format: &str, scale: f64) -> LogicalSize<f64> {
     let (w, h) = match format {
         "compact" => (312.0, 92.0), // tarjeta de 288x64
         "mini" => (200.0, 68.0),    // cápsula de 176x40
+        "island" => (258.0, 44.0),  // isla cerrada: 230x34 más las aletas que la unen al borde (la abierta, ISLAND_OPEN)
         _ => (312.0, 144.0),        // tarjeta de 288x116
     };
     LogicalSize::new(w * scale, h * scale)
@@ -294,8 +305,10 @@ fn set_float_scale(app: &AppHandle, scale: f64) {
     let st = app.state::<AppState>();
     let format = { let mut c = st.settings.lock().unwrap(); c.scale = scale; c.format.clone() };
     if let Some(w) = app.get_webview_window("float") {
-        let _ = w.set_size(float_size(&format, scale));
+        let size = float_size(&format, scale);
+        let _ = w.set_size(size);
         let _ = w.set_zoom(scale);
+        if format == "island" { place_island(&w, size); }
     }
     save_settings(app);
 }
@@ -345,11 +358,14 @@ fn create_float(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     reload_on_crash(app, w.as_ref());
     set_webview_memory(w.as_ref(), true); // página chiquita siempre a la vista: no necesita las cachés de una pestaña normal
     let _ = w.set_zoom(cfg.scale);
-    restore_float_pos(app, &w);
+    if cfg.format == "island" { place_island(&w, size); } else { restore_float_pos(app, &w); }
     let ah = app.clone();
     w.on_window_event(move |e| {
+        // la isla tiene lugar fijo: no pisa la posición guardada del flotante
         if let WindowEvent::Moved(p) = e {
-            *ah.state::<AppState>().pending_pos.lock().unwrap() = Some((p.x, p.y));
+            if ah.state::<AppState>().settings.lock().unwrap().format != "island" {
+                *ah.state::<AppState>().pending_pos.lock().unwrap() = Some((p.x, p.y));
+            }
         }
     });
     Ok(w)
@@ -734,6 +750,16 @@ fn get_state(state: tauri::State<AppState>) -> PlayerState {
 #[tauri::command]
 fn control(app: AppHandle, action: String, value: Option<f64>) {
     if action == "search" { return open_search(&app); }
+    if action == "island" {   // la isla se despliega (1) o se repliega (0): la ventana crece o se achica desde el centro de arriba
+        let st = app.state::<AppState>();
+        let (format, scale) = { let c = st.settings.lock().unwrap(); (c.format.clone(), c.scale) };
+        if let (true, Some(w)) = (format == "island", app.get_webview_window("float")) {
+            let size = if value.unwrap_or(0.0) > 0.5 { LogicalSize::new(ISLAND_OPEN.0 * scale, ISLAND_OPEN.1 * scale) } else { float_size("island", scale) };
+            let _ = w.set_size(size);
+            place_island(&w, size);
+        }
+        return;
+    }
     let code = match action.as_str() {
         "playpause" => "window.__lm&&window.__lm.playPause()".to_string(),
         "next" => "window.__lm&&window.__lm.next()".to_string(),
@@ -928,7 +954,7 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
             "notify_song" => if let Some(v) = b { c.notify_song = v },
             "theme" => if let Some(v) = value.as_str().filter(|v| ["auto", "dark", "light"].contains(v)) { c.theme = v.into() },
             "glass" => if let Some(v) = value.as_str().filter(|v| ["off", "art", "screen"].contains(v)) { c.glass = v.into() },
-            "format" => if let Some(v) = value.as_str().filter(|v| ["normal", "compact", "mini"].contains(v)) { c.format = v.into() },
+            "format" => if let Some(v) = value.as_str().filter(|v| ["normal", "compact", "mini", "island"].contains(v)) { c.format = v.into() },
             "float_app_bg" => if let Some(v) = b { c.float_app_bg = v },
             "glass_bg" => if let Some(v) = value.as_str().filter(|v| ["dark", "light", "custom"].contains(v)) { c.glass_bg = v.into() },
             "glass_color" => if let Some(v) = value.as_str().filter(|v| v.len() == 7 && v.starts_with('#') && v[1..].chars().all(|h| h.is_ascii_hexdigit())) { c.glass_color = v.into() },
@@ -942,7 +968,11 @@ fn set_setting(app: AppHandle, key: String, value: serde_json::Value) {
     match key.as_str() {
         "skin" => if let Some(v) = value.as_str() { set_skin(&app, v) },
         "scale" => if let Some(v) = n { set_float_scale(&app, v) },
-        "format" => { let cur = app.state::<AppState>().settings.lock().unwrap().scale; set_float_scale(&app, cur) }   // ajusta la ventana al formato
+        "format" => {   // ajusta la ventana al formato; al salir de la isla vuelve a donde estaba el flotante
+            let cur = app.state::<AppState>().settings.lock().unwrap().scale;
+            set_float_scale(&app, cur);
+            if value.as_str() != Some("island") { if let Some(w) = app.get_webview_window("float") { restore_float_pos(&app, &w); } }
+        }
         "source" => if let Some(v) = value.as_str() { set_source(&app, v) },
         "float_on_top" => if let (Some(w), Some(v)) = (app.get_webview_window("float"), b) { let _ = w.set_always_on_top(v); },
         "glass" | "glass_bg" | "glass_color" => { let g = glass_spec(&app.state::<AppState>().settings.lock().unwrap()); js(&app, &format!("window.__lm&&window.__lm.glass({g})")); paint_caption(&app) }
