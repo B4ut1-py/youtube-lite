@@ -228,6 +228,7 @@ fn choose_source(app: AppHandle, source: String) {
 fn open_link(which: String) {
     let url = match which.as_str() {
         "github" => "https://github.com/B4ut1-py",
+        "repo" => "https://github.com/B4ut1-py/youtube-lite",
         "linkedin" => "https://www.linkedin.com/in/bautista-rubio/",
         _ => return,
     };
@@ -816,22 +817,26 @@ fn say(app: &AppHandle, msg: &str) {
 }
 
 // Busca una versión nueva en GitHub y AVISA en la ventana y en la bandeja. Nunca instala por su cuenta.
-async fn check_update(app: AppHandle, manual: bool) {
-    let Ok(updater) = app.updater() else { return };
+// Devuelve si se pudo consultar.
+async fn check_update(app: AppHandle, manual: bool) -> bool {
+    let Ok(updater) = app.updater() else { return false };
     match updater.check().await {
         Ok(Some(update)) => {
             set_update_available(&app, Some(update.version));
+            true
         }
         Ok(None) => {
             set_update_available(&app, None);
             if manual {
                 say(&app, "Lite Music: ya tienes la última versión");
             }
+            true
         }
         Err(_) => {
             if manual {
                 say(&app, "Lite Music: no se pudo buscar actualizaciones");
             }
+            false
         }
     }
 }
@@ -1586,15 +1591,14 @@ fn main() {
 
             start_ticker(app.handle().clone());
 
-            // Búsqueda de versiones nuevas (solo avisa): al abrir, tras unos segundos, y luego cada 6 horas.
+            // Búsqueda de versiones nuevas (solo avisa): al abrir, tras unos segundos, y luego cada hora. Si falla
+            // (p. ej. todavía sin internet al arrancar Windows) se reintenta a los 5 minutos en vez de esperar la hora.
             let a = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 tokio_sleep(8).await;
                 loop {
-                    if a.state::<AppState>().settings.lock().unwrap().auto_update {
-                        check_update(a.clone(), false).await;
-                    }
-                    tokio_sleep(6 * 3600).await;
+                    let ok = !a.state::<AppState>().settings.lock().unwrap().auto_update || check_update(a.clone(), false).await;
+                    tokio_sleep(if ok { 3600 } else { 300 }).await;
                 }
             });
 
