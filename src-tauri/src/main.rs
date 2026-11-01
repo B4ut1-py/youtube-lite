@@ -1203,7 +1203,7 @@ async fn tokio_sleep(secs: u64) {
 // La página de música hace la búsqueda (inject.js: __lm.search) y devuelve los resultados con search_results.
 fn toggle_search(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("search") {
-        if w.is_visible().unwrap_or(false) { let _ = w.hide(); return; }
+        if w.is_visible().unwrap_or(false) { let _ = w.hide(); close_search_later(&w); return; }
         place_search(&w);
         let _ = w.show();
         let _ = w.set_focus();
@@ -1228,7 +1228,7 @@ fn toggle_search(app: &AppHandle) {
     let Ok(w) = b.build() else { return };
     place_search(&w);
     let ww = w.clone();
-    w.on_window_event(move |e| if let WindowEvent::Focused(false) = e { let _ = ww.hide(); });   // al hacer clic afuera se cierra
+    w.on_window_event(move |e| if let WindowEvent::Focused(false) = e { let _ = ww.hide(); close_search_later(&ww); });   // al hacer clic afuera se cierra
     let _ = w.show();
     let _ = w.set_focus();
 }
@@ -1270,16 +1270,25 @@ fn search_results(app: AppHandle, seq: u64, items: serde_json::Value, error: Str
     if s.0 == seq { s.1 = Some(serde_json::json!({ "items": items, "error": error })); }
 }
 
+// Oculta un minuto, la ventana de búsqueda se cierra: libera su proceso (~22 MB). Abrirla de nuevo tarda un instante.
+fn close_search_later(w: &WebviewWindow) {
+    let w = w.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio_sleep(60).await;
+        if !w.is_visible().unwrap_or(true) { let _ = w.destroy(); }
+    });
+}
+
 #[tauri::command]
 fn search_play(app: AppHandle, i: u64, open: bool) {
     js(&app, &format!("window.__lm&&window.__lm.searchPlay&&window.__lm.searchPlay({i})"));
-    if let Some(w) = app.get_webview_window("search") { let _ = w.hide(); }
+    if let Some(w) = app.get_webview_window("search") { let _ = w.hide(); close_search_later(&w); }
     if open { show(&app); }   // un artista se abre en la ventana
 }
 
 #[tauri::command]
 fn search_hide(app: AppHandle) {
-    if let Some(w) = app.get_webview_window("search") { let _ = w.hide(); }
+    if let Some(w) = app.get_webview_window("search") { let _ = w.hide(); close_search_later(&w); }
 }
 
 // Acciones de los menús (bandeja y barra superior de la ventana).

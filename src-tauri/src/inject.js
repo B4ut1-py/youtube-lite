@@ -55,7 +55,9 @@
     const sl = document.querySelector('ytmusic-player-bar #progress-bar');
     if (!sl || progObs?.el === sl) return;
     progObs?.disconnect();
-    const put = () => { const max = +sl.getAttribute('aria-valuemax') || 0; document.documentElement.style.setProperty('--lm-p', max ? Math.min(1, (+sl.getAttribute('aria-valuenow') || 0) / max).toFixed(4) : 0); };
+    // en la barra y no en la raíz: cambiar una variable de <html> cada segundo recalcula los estilos de toda la página
+    const put = () => { const bg = document.getElementById('player-bar-background'), max = +sl.getAttribute('aria-valuemax') || 0;
+      bg?.style.setProperty('--lm-p', max ? Math.min(1, (+sl.getAttribute('aria-valuenow') || 0) / max).toFixed(4) : 0); };
     progObs = new MutationObserver(put); progObs.el = sl;
     progObs.observe(sl, { attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuemax'] });
     put();
@@ -359,13 +361,21 @@
     const n = spNodes().find((x) => spHref(x) === it.href);
     // canción o lista: doble clic en la fila, o el play de la tarjeta. El resultado principal (fila con su propio play)
     // solo responde a un clic real del mouse: ese se abre y se reproduce desde su página, como los artistas.
+    // si el resultado principal también aparece como fila común, se reproduce desde ahí (sin abrir su página)
+    const twin = !it.round && spNodes().find((x) => x !== n && spHref(x) === it.href && !x.querySelector('[data-testid="play-button"]'));
+    if (twin) return twin.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     const own = n?.querySelector('[data-testid="play-button"]');
     if (n && !it.round && !(own && n.matches('[data-encore-id="listRow"]'))) return own ? own.click() : n.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    spGo(it.href.replace(/^\/intl-[^/]+/, ''));                // artista (o la lista cambió): abrir su página y tocar su play
+    // artista o resultado principal: abrir su página y tocar su play. Se espera a que la página sea la nueva (si ya
+    // había otra con botón de play, se tocaba ese y sonaba otra cosa).
+    const target = it.href.replace(/^\/intl-[^/]+/, ''), playBtn = () => document.querySelector('#main-view [data-testid="action-bar-row"] [data-testid="play-button"]');
+    const old = playBtn();
+    spGo(target);
     for (let i = 0; i < 40; i++) {
       await wait(150);
-      const b = document.querySelector('#main-view [data-testid="action-bar-row"] [data-testid="play-button"]');
-      if (b) return b.click();
+      if (!location.pathname.replace(/^\/intl-[^/]+/, '').startsWith(target)) continue;
+      const b = playBtn();
+      if (b && (b !== old || i > 12)) return b.click();
     }
   };
   window.__lm.search = async (q, kind, seq) => {
