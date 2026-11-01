@@ -160,9 +160,15 @@
   body.fmt-island:not(.isl-open) #eq { display: flex; }
   #eq i { width: 3px; height: 14px; border-radius: 2px; background: var(--accent); transform-origin: center; transform: scaleY(.35); }
   /* barritas: solo se mueven mientras suena, a pocos cuadros por segundo (gasta casi nada) */
-  body.fmt-island:not(.paused) #eq i { animation: eq .9s steps(5) infinite alternate; }
+  body.fmt-island:not(.paused) #eq i { animation: eq .65s steps(5) infinite alternate; }
   #eq i:nth-child(2) { animation-delay: -.3s !important; } #eq i:nth-child(3) { animation-delay: -.6s !important; }
   #eq i:nth-child(4) { animation-delay: -.15s !important; } #eq i:nth-child(5) { animation-delay: -.45s !important; }
+  #eq i:nth-child(6) { display: none; animation-delay: -.75s !important; }
+  /* isla finita (ventana maximizada): solo una muesca con las barritas, los clics la atraviesan (Rust: ISL_THIN) */
+  body.fmt-island.isl-thin:not(.isl-open) .card { --f: 8px; width: 64px; height: 16px; padding: 0; justify-content: center;
+    border-radius: 0 0 10px 10px; box-shadow: 0 3px 8px rgba(0, 0, 0, .28); }
+  body.fmt-island.isl-thin:not(.isl-open) .tile, body.fmt-island.isl-thin:not(.isl-open) .info { display: none; }
+  body.isl-thin #eq i { height: 11px; } body.isl-thin #eq i:nth-child(6) { display: block; }
   @keyframes eq { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
   /* abierta: igual que el reproductor normal */
   body.fmt-island.isl-open .card { --f: 22px; width: 380px; height: 124px; padding: 12px 14px 12px 12px; gap: 12px; align-items: stretch; border-radius: 0 0 30px 30px; }
@@ -216,7 +222,7 @@
   </div>
   <div id="badge"></div>
   <i class="fin l"></i><i class="fin r"></i>
-  <div id="eq"><i></i><i></i><i></i><i></i><i></i></div>
+  <div id="eq"><i></i><i></i><i></i><i></i><i></i><i></i></div>
 </div>
 <script>
 const inv = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
@@ -385,8 +391,15 @@ function render(st) {
     if (CFG.format !== format) {                                   // el ultra compacto muestra siempre la carátula: se vuelve a elegir el aspecto
       format = CFG.format || 'normal'; skin = ''; shownTitle = null; if (format === 'island') islAvg(cover);
       // al salir de la isla también se van sus estados (abierta, cerrándose): si quedaban, el formato nuevo se veía roto
-      document.body.classList.remove('fmt-normal', 'fmt-compact', 'fmt-mini', 'fmt-island', 'isl-open', 'isl-ready', 'isl-closing'); document.body.classList.add('fmt-' + format);
+      document.body.classList.remove('fmt-normal', 'fmt-compact', 'fmt-mini', 'fmt-island', 'isl-open', 'isl-ready', 'isl-closing', 'isl-thin'); document.body.classList.add('fmt-' + format);
     }
+  }
+  const thin = !!st.thin && format === 'island';
+  if (thin !== document.body.classList.contains('isl-thin')) {
+    document.body.classList.toggle('isl-thin', thin);
+    // la ventana sigue a la isla cerrada: crece enseguida o se achica cuando la isla terminó de angostarse
+    clearTimeout(thinT);
+    if (!document.body.classList.contains('isl-open')) thinT = setTimeout(() => inv('control', { action: 'island', value: 0 }), thin ? 330 : 0);
   }
   if (st.skin !== skin) {
     skin = st.skin; sleeping = null;
@@ -638,16 +651,19 @@ function islAvg(url) {
   im.src = url;
 }
 // Isla: al entrar el mouse la ventana crece y la tarjeta se despliega; al salir se repliega y después la ventana se achica.
-let islT = null;
-document.documentElement.addEventListener('mouseenter', () => {
+// Con la isla finita los clics la atraviesan y la página no ve el mouse: Rust llama a __islOpen / __islClose.
+let islT = null, thinT = null;
+window.__islOpen = () => {
   if (format !== 'island') return;
   clearTimeout(islT); document.body.classList.remove('isl-closing');
-  if (document.body.classList.contains('isl-open')) return;
-  inv('control', { action: 'island', value: 1 });
-  requestAnimationFrame(() => document.body.classList.add('isl-open'));
+  // dos llamadas seguidas (Rust y el mouseenter de la ventana que crece): la segunda no debe dejar el contenido oculto
+  if (!document.body.classList.contains('isl-open')) {
+    inv('control', { action: 'island', value: 1 });
+    requestAnimationFrame(() => document.body.classList.add('isl-open'));
+  }
   islT = setTimeout(() => { document.body.classList.add('isl-ready'); refit(); }, 330);
-});
-document.documentElement.addEventListener('mouseleave', () => {
+};
+window.__islClose = () => {
   if (format !== 'island') return;
   clearTimeout(islT);
   islT = setTimeout(() => {                               // primero se va el contenido, después se achica la isla y al final la ventana
@@ -657,7 +673,9 @@ document.documentElement.addEventListener('mouseleave', () => {
       islT = setTimeout(() => { document.body.classList.remove('isl-closing'); refit(); inv('control', { action: 'island', value: 0 }); }, 330);
     }, 150);
   }, 250);
-});
+};
+document.documentElement.addEventListener('mouseenter', __islOpen);
+document.documentElement.addEventListener('mouseleave', __islClose);
 $('bar').onclick = (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   inv('control', { action: 'seek', value: (e.clientX - r.left) / r.width });

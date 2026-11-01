@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fs, sync::Mutex, time::{Duration, Instant}};
+use std::{fs, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Mutex}, time::{Duration, Instant}};
 
 use serde::{Deserialize, Serialize};
 use tauri_plugin_updater::UpdaterExt;
@@ -104,6 +104,8 @@ struct PlayerState {
     cfg: Settings,
     #[serde(default)]
     glass: serde_json::Value, // ver glass_spec: el flotante lo usa si toma el fondo de la app
+    #[serde(default)]
+    thin: bool, // isla finita (ver ISL_THIN)
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -134,6 +136,11 @@ struct AppState {
 // Isla desplegada (al pasar el mouse): 380x136 más las aletas y la sombra.
 const ISLAND_OPEN: (f64, f64) = (424.0, 150.0);
 
+// Isla finita: con una ventana maximizada en la pantalla principal la isla cerrada se reduce a una muesca con las barritas
+// y deja pasar los clics (no tapa las pestañas del navegador). Se despliega con el mouse quieto arriba (island_hover).
+static ISL_THIN: AtomicBool = AtomicBool::new(false);
+static ISL_OPEN: AtomicBool = AtomicBool::new(false);
+
 // La isla va pegada al borde de arriba, centrada en la pantalla principal (no se arrastra).
 fn place_island(w: &WebviewWindow, size: LogicalSize<f64>) {
     let Some(m) = w.primary_monitor().ok().flatten() else { return };
@@ -146,6 +153,7 @@ fn float_size(format: &str, scale: f64) -> LogicalSize<f64> {
     let (w, h) = match format {
         "compact" => (312.0, 92.0), // tarjeta de 288x64
         "mini" => (200.0, 68.0),    // cápsula de 176x40
+        "island" if ISL_THIN.load(SeqCst) => (84.0, 22.0), // isla finita: 64x16 más las aletas
         "island" => (258.0, 44.0),  // isla cerrada: 230x34 más las aletas que la unen al borde (la abierta, ISLAND_OPEN)
         _ => (312.0, 144.0),        // tarjeta de 288x116
     };
@@ -173,15 +181,20 @@ fn save_settings(app: &AppHandle) {
     }
 }
 
+// Sin la marca BOM que agregan algunos editores: con ella el archivo no se lee y se pierden todos los ajustes.
+fn parse_settings(text: &str) -> Option<Settings> {
+    let mut s = serde_json::from_str::<Settings>(text.trim_start_matches('\u{feff}')).ok()?;
+    if !s.float_v2 {
+        // La escala guardada era para el flotante anterior, mucho más grande: con la tarjeta nueva se empieza en 100 %.
+        s.scale = 1.0;
+        s.float_v2 = true;
+    }
+    Some(s)
+}
+
 // Lee settings.json; si no existe (versiones anteriores) toma lo guardado en los archivos sueltos.
 fn load_settings(app: &AppHandle) -> Settings {
-    // Sin la marca BOM que agregan algunos editores: con ella el archivo no se lee y se pierden todos los ajustes.
-    if let Some(mut s) = settings_path(app).and_then(|p| fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<Settings>(t.trim_start_matches('\u{feff}')).ok()) {
-        if !s.float_v2 {
-            // La escala guardada era para el flotante anterior, mucho más grande: con la tarjeta nueva se empieza en 100 %.
-            s.scale = 1.0;
-            s.float_v2 = true;
-        }
+    if let Some(s) = settings_path(app).and_then(|p| fs::read_to_string(p).ok()).and_then(|t| parse_settings(&t)) {
         return s;
     }
     let mut s = Settings::default();
@@ -258,10 +271,12 @@ fn open_in_browser(url: &str) {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return;
     }
+    // ShellExecute y no explorer.exe: explorer lee las comas de la dirección como opciones propias
+    // (",/root,shell:Downloads" abría una carpeta de la PC en vez del navegador).
     #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let _ = std::process::Command::new("explorer.exe").arg(url).creation_flags(0x0800_0000).spawn();
+    unsafe {
+        use windows::{core::{w, HSTRING}, Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL}};
+        ShellExecuteW(None, w!("open"), &HSTRING::from(url), None, None, SW_SHOWNORMAL);
     }
     #[cfg(not(windows))]
     let _ = std::process::Command::new("xdg-open").arg(url).spawn();
@@ -378,7 +393,7 @@ static FLOAT_BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool
 fn float_wanted(app: &AppHandle) -> bool {
     let st = app.state::<AppState>();
     let want = *st.user_float.lock().unwrap() && !*st.auto_hidden.lock().unwrap();
-    want
+    want // en una variable: los bloqueos se sueltan antes de devolver
 }
 
 // ¿Coincide lo que se ve con lo que se quiere ver? (el latido de cada segundo lo corrige si no)
@@ -386,7 +401,7 @@ fn float_in_sync(app: &AppHandle) -> bool {
     let want = float_wanted(app);
     let destroy = app.state::<AppState>().settings.lock().unwrap().destroy_float;
     match app.get_webview_window("float") {
-        Some(w) => want == w.is_visible().unwrap_or(true) || (!want && false),
+        Some(w) => want == w.is_visible().unwrap_or(true),
         None => !want && destroy,
     }
 }
@@ -415,7 +430,9 @@ fn apply_float_visibility(app: &AppHandle) {
             }
             (false, Some(w)) => {
                 if destroy {
-                    if let Ok(p) = w.outer_position() {
+                    // la isla tiene lugar fijo: no pisa la posición guardada del flotante
+                    let island = a.state::<AppState>().settings.lock().unwrap().format == "island";
+                    if let (false, Ok(p)) = (island, w.outer_position()) {
                         cfg_write(&a, "pos.txt", &format!("{},{}", p.x, p.y));
                     }
                     let _ = w.destroy();
@@ -472,13 +489,60 @@ fn fullscreen_busy() -> bool {
     false
 }
 
+// ¿La ventana activa está maximizada en la pantalla principal (la de la isla)? None = es una ventana propia que no es la
+// principal (la isla recién usada, la búsqueda): se mantiene lo que había.
+#[cfg(windows)]
+fn maximized_on_primary(app: &AppHandle) -> Option<bool> {
+    use windows::Win32::{Foundation::POINT, Graphics::Gdi::{MonitorFromPoint, MonitorFromWindow, MONITOR_DEFAULTTONULL, MONITOR_DEFAULTTOPRIMARY},
+        UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, IsZoomed}};
+    unsafe {
+        let h = GetForegroundWindow();
+        let mut pid = 0;
+        GetWindowThreadProcessId(h, Some(&mut pid));
+        if pid == std::process::id() && main_win(app).and_then(|w| w.hwnd().ok()).map_or(true, |m| m.0 as isize != h.0 as isize) {
+            return None;
+        }
+        Some(IsZoomed(h).as_bool() && MonitorFromWindow(h, MONITOR_DEFAULTTONULL) == MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY))
+    }
+}
+#[cfg(not(windows))]
+fn maximized_on_primary(_app: &AppHandle) -> Option<bool> {
+    Some(false)
+}
+
+// Isla finita: con el mouse quieto medio segundo sobre ella se despliega; abierta, se repliega cuando el mouse sale
+// (los clics la atraviesan, así que la página no ve entrar el mouse: se mira la posición desde aquí).
+fn island_hover(app: AppHandle) {
+    std::thread::spawn(move || {
+        let mut since: Option<Instant> = None;
+        loop {
+            std::thread::sleep(Duration::from_millis(if ISL_THIN.load(SeqCst) { 100 } else { 1000 }));
+            let (true, Some(w), Ok(c)) = (ISL_THIN.load(SeqCst), app.get_webview_window("float"), app.cursor_position()) else { since = None; continue };
+            let (Ok(p), Ok(s)) = (w.outer_position(), w.outer_size()) else { continue };
+            let inside = c.x >= p.x as f64 && c.x < p.x as f64 + s.width as f64 && c.y >= p.y as f64 && c.y < p.y as f64 + s.height as f64;
+            let open = ISL_OPEN.load(SeqCst);
+            if inside == open { since = None; continue; }   // cerrada cuenta el tiempo adentro; abierta, el tiempo afuera
+            if since.get_or_insert_with(Instant::now).elapsed() < Duration::from_millis(if open { 400 } else { 500 }) { continue; }
+            since = None;
+            if open {
+                let _ = w.eval("window.__islClose&&__islClose()");
+                std::thread::sleep(Duration::from_secs(1)); // el repliegue tarda ~0,7 s: no se lo reinicia
+            } else {
+                ISL_OPEN.store(true, SeqCst);
+                let _ = w.set_ignore_cursor_events(false);
+                let _ = w.eval("window.__islOpen&&__islOpen()");
+            }
+        }
+    });
+}
+
 // --- Pomodoro: estudio -> descanso -> estudio... hasta que lo detengas ---
 fn set_skin_temp(app: &AppHandle, skin: &str) {
     app.state::<AppState>().player.lock().unwrap().skin = skin.into();
 }
 
 fn start_pomo(app: &AppHandle, focus_min: u64, rest_min: u64) {
-    let prev = {
+    {
         let st = app.state::<AppState>();
         let mut p = st.pomo.lock().unwrap();
         if p.phase == Phase::Off {
@@ -488,9 +552,7 @@ fn start_pomo(app: &AppHandle, focus_min: u64, rest_min: u64) {
         p.focus_s = focus_min * 60;
         p.rest_s = rest_min * 60;
         p.end = Instant::now() + Duration::from_secs(p.focus_s);
-        p.prev_skin.clone()
-    };
-    let _ = prev;
+    }
     set_skin_temp(app, "estudiando");
     js(app, "window.__lm&&window.__lm.play()");
 }
@@ -645,6 +707,11 @@ fn start_ticker(app: AppHandle) {
         if changed || !float_in_sync(&app) {
             apply_float_visibility(&app);
         }
+        let thin = st.settings.lock().unwrap().format == "island" && maximized_on_primary(&app).unwrap_or(ISL_THIN.load(SeqCst));
+        ISL_THIN.store(thin, SeqCst);
+        if let Some(f) = app.get_webview_window("float") {
+            let _ = f.set_ignore_cursor_events(thin && !ISL_OPEN.load(SeqCst));
+        }
         let pos = st.pending_pos.lock().unwrap().take();
         if let Some((x, y)) = pos {
             cfg_write(&app, "pos.txt", &format!("{x},{y}"));
@@ -751,6 +818,7 @@ fn get_state(state: tauri::State<AppState>) -> PlayerState {
     p.pomo_phase = match pm.phase { Phase::Off => "off", Phase::Focus => "focus", Phase::Rest => "rest" }.into();
     p.cfg = state.settings.lock().unwrap().clone();
     p.glass = glass_spec(&p.cfg);
+    p.thin = ISL_THIN.load(SeqCst);
     p.pomo_left = if pm.phase == Phase::Off { 0 } else { pm.end.saturating_duration_since(Instant::now()).as_secs() };
     p.sleep_left = state.sleep_at.lock().unwrap().map_or(0, |t| t.saturating_duration_since(Instant::now()).as_secs());
     p
@@ -763,9 +831,12 @@ fn control(app: AppHandle, action: String, value: Option<f64>) {
         let st = app.state::<AppState>();
         let (format, scale) = { let c = st.settings.lock().unwrap(); (c.format.clone(), c.scale) };
         if let (true, Some(w)) = (format == "island", app.get_webview_window("float")) {
-            let size = if value.unwrap_or(0.0) > 0.5 { LogicalSize::new(ISLAND_OPEN.0 * scale, ISLAND_OPEN.1 * scale) } else { float_size("island", scale) };
+            let open = value.unwrap_or(0.0) > 0.5;
+            ISL_OPEN.store(open, SeqCst);
+            let size = if open { LogicalSize::new(ISLAND_OPEN.0 * scale, ISLAND_OPEN.1 * scale) } else { float_size("island", scale) };
             let _ = w.set_size(size);
             place_island(&w, size);
+            let _ = w.set_ignore_cursor_events(!open && ISL_THIN.load(SeqCst));
         }
         return;
     }
@@ -1023,10 +1094,12 @@ fn settings_action(app: AppHandle, action: String) {
                 let (source, welcomed) = (c.source.clone(), c.welcomed);
                 *c = Settings { source, welcomed, ..Settings::default() };
             }
-            save_settings(&app);
-            set_float_scale(&app, 1.0);
-            set_skin(&app, "dog");
-            if let Some(w) = app.get_webview_window("float") { let _ = w.set_always_on_top(true); }
+            // cada ajuste con efecto inmediato pasa por set_setting: la página, la barra y el flotante se enteran ya
+            let d = Settings::default();
+            for (k, v) in [("skin", serde_json::json!(d.skin)), ("format", serde_json::json!(d.format)), ("float_on_top", serde_json::json!(d.float_on_top)),
+                           ("glass", serde_json::json!(d.glass)), ("audio_only", serde_json::json!(d.audio_only)), ("theme", serde_json::json!(d.theme))] {
+                set_setting(app.clone(), k.into(), v);
+            }
         }
         _ => {}
     }
@@ -1216,8 +1289,6 @@ fn stop_service_workers(w: &Webview) {
 // Entra o sale del modo ahorro de la ventana principal según los ajustes.
 fn set_main_idle(app: &AppHandle, idle: bool) {
     let Some(w) = main_window(app) else { return };
-    if !idle {
-    }
     let st = app.state::<AppState>();
     let (webview, ui) = {
         let c = st.settings.lock().unwrap();
@@ -1379,9 +1450,6 @@ fn on_menu(app: &AppHandle, id: &str) {
             } else {
                 tauri::async_runtime::spawn(check_update(a, true));
             }
-        }
-        "update" => {
-            tauri::async_runtime::spawn(install_update(app.clone()));
         }
         "quit" => app.exit(0),
         _ => {}
@@ -1594,6 +1662,7 @@ fn main() {
             thumbbar::install(app.handle(), &win);
 
             start_ticker(app.handle().clone());
+            island_hover(app.handle().clone());
 
             // Búsqueda de versiones nuevas (solo avisa): al abrir, tras unos segundos, y luego cada hora. Si falla
             // (p. ej. todavía sin internet al arrancar Windows) se reintenta a los 5 minutos en vez de esperar la hora.
@@ -1631,6 +1700,10 @@ mod tests {
         let viejo: super::Settings = serde_json::from_str(r#"{"scale": 0.6, "welcomed": true}"#).unwrap();
         assert!(!viejo.float_v2 && viejo.scale == 0.6 && viejo.theme == "auto");
         assert!(super::Settings::default().float_v2);
+        // la migración y la marca BOM pasan por la misma lectura que usa la app
+        let s = super::parse_settings("\u{feff}{\"scale\": 0.6, \"welcomed\": true, \"glass\": \"art\"}").expect("con BOM se lee igual");
+        assert!(s.welcomed && s.glass == "art" && s.scale == 1.0 && s.float_v2);
+        assert!(super::parse_settings("{roto").is_none());
     }
 
     #[test]
