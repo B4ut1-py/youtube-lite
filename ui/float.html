@@ -122,50 +122,56 @@
   body:not(.fmt-normal) #find { display: none; }
   body.fmt-normal .ctr { justify-content: flex-start; }
   .ctr #like { margin: 0 0 0 auto; }
-  /* Isla: pliegue negro pegado al borde de arriba de la pantalla. Cerrada muestra carátula, título y barritas;
-     al pasar el mouse la ventana crece (Rust) y la tarjeta se despliega hacia abajo con los controles. */
-  body.fmt-island { padding: 0; align-items: flex-start; }
+  /* Isla: pliegue pegado al borde de arriba de la pantalla, con el estilo elegido (Normal, Cristal o Transparente).
+     Cerrada muestra carátula, título y barritas; al pasar el mouse la ventana crece (Rust) y se despliega como el
+     reproductor normal: carátula grande a la izquierda y el resto a la derecha. */
+  body.fmt-island { padding: 0; align-items: flex-start; --isl-bg: var(--card); --isl-fin: var(--isl-bg); }
+  html.glass.screen body.fmt-island { --isl-bg: rgba(18, 18, 26, .42); }
+  html.glass.screen.light body.fmt-island { --isl-bg: rgba(255, 255, 255, .55); }
+  html.glass:not(.screen) body.fmt-island { --isl-bg: transparent; --isl-fin: var(--isl-avg, rgba(30, 30, 40, .9)); }   /* Cristal: la carátula desenfocada (#art); las aletas, su color medio */
+  html.appbg body.fmt-island { --isl-fin: color-mix(in srgb, var(--lm-tint) 85%, #000); }
+  html.appbg body.fmt-island #art { background: var(--isl-fin) !important; }
   body.fmt-island .card { --f: 14px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 230px; height: 34px;
-    padding: 0 14px 2px 8px; gap: 9px; align-items: center; border: 0; border-radius: 0 0 18px 18px; background: #000 !important; color: #fff;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, .3); isolation: auto;
+    padding: 0 14px 2px 8px; gap: 9px; align-items: center; border: 0; border-radius: 0 0 18px 18px; background: var(--isl-bg) !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .28); overflow: visible;
     transition: width .32s cubic-bezier(.3, 1.25, .5, 1), height .32s cubic-bezier(.3, 1.25, .5, 1), border-radius .32s, padding .32s; }
   html.glass body.fmt-island .card::before, html.glass body.fmt-island .card::after { display: none; }
-  body.fmt-island #art, body.fmt-island #vcol, body.fmt-island #badge { display: none !important; }
-  /* aletas cóncavas que unen la isla con el borde de la pantalla */
+  body.fmt-island #art { border-radius: inherit; } body.fmt-island #art::after { border-radius: inherit; }
+  body.fmt-island #vcol, body.fmt-island #badge { display: none !important; }
+  /* aletas cóncavas que unen la isla con el borde de la pantalla, del mismo color que la isla */
   .fin { display: none; }
   body.fmt-island .fin { display: block; position: absolute; top: 0; width: var(--f); height: var(--f); transition: width .32s, height .32s; }
-  body.fmt-island .fin.l { left: calc(-1 * var(--f)); background: radial-gradient(circle at 0 100%, transparent var(--f), #000 calc(var(--f) + .5px)); }
-  body.fmt-island .fin.r { right: calc(-1 * var(--f)); background: radial-gradient(circle at 100% 100%, transparent var(--f), #000 calc(var(--f) + .5px)); }
+  body.fmt-island .fin.l { left: calc(-1 * var(--f)); background: radial-gradient(circle at 0 100%, transparent var(--f), var(--isl-fin) calc(var(--f) + .5px)); }
+  body.fmt-island .fin.r { right: calc(-1 * var(--f)); background: radial-gradient(circle at 100% 100%, transparent var(--f), var(--isl-fin) calc(var(--f) + .5px)); }
   body.fmt-island .tile { width: 22px; height: 22px; border-radius: 50%; background: none; transition: width .32s, height .32s, border-radius .32s; }
   body.fmt-island #cover { border-radius: inherit; }
   body.fmt-island .info { flex-direction: row; align-items: center; gap: 6px; }
   body.fmt-island .head { flex: 1; min-width: 0; }
-  body.fmt-island #title { margin: 0; font-size: 12px; color: #fff; }
+  body.fmt-island #title { margin: 0; font-size: 12px; }
   body.fmt-island #artist, body.fmt-island #find, body.fmt-island .prog, body.fmt-island .ctr { display: none; }
   #eq { display: none; gap: 2.5px; align-items: center; height: 14px; flex: none; }
-  body.fmt-island #eq { display: flex; }
-  #eq i { width: 3px; height: 14px; border-radius: 2px; background: #ff3d6e; transform-origin: center; transform: scaleY(.35); }
+  body.fmt-island:not(.isl-open) #eq { display: flex; }
+  #eq i { width: 3px; height: 14px; border-radius: 2px; background: var(--accent); transform-origin: center; transform: scaleY(.35); }
   /* barritas: solo se mueven mientras suena, a pocos cuadros por segundo (gasta casi nada) */
   body.fmt-island:not(.paused) #eq i { animation: eq .9s steps(5) infinite alternate; }
   #eq i:nth-child(2) { animation-delay: -.3s !important; } #eq i:nth-child(3) { animation-delay: -.6s !important; }
   #eq i:nth-child(4) { animation-delay: -.15s !important; } #eq i:nth-child(5) { animation-delay: -.45s !important; }
   @keyframes eq { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
-  body.fmt-island.isl-open .card { --f: 22px; width: 380px; height: 136px; padding: 14px 20px 12px; border-radius: 0 0 34px 34px; align-items: flex-start; }
-  body.fmt-island.isl-open .tile { width: 50px; height: 50px; border-radius: 12px; }
-  body.fmt-island.isl-open .info { flex-direction: column; align-items: stretch; gap: 0; align-self: stretch; }
-  body.fmt-island.isl-open .head { flex: none; margin: 4px 60px 0 0; }
-  body.fmt-island.isl-open #title { font-size: 14px; }
-  body.fmt-island.isl-open #artist { display: block; color: rgba(255, 255, 255, .6); }
-  body.fmt-island.isl-open .prog { display: flex; position: absolute; left: 20px; right: 20px; top: 76px; margin: 0; color: rgba(255, 255, 255, .55); }
-  body.fmt-island.isl-open #bar { background: rgba(255, 255, 255, .18); } body.fmt-island.isl-open #fill { background: #fff; }
-  body.fmt-island.isl-open .ctr { display: flex; position: absolute; left: 62px; right: 20px; bottom: 12px; margin: 0; justify-content: space-between; }
-  body.fmt-island.isl-open #find { display: grid; position: absolute; left: 22px; bottom: 15px; margin: 0; color: rgba(255, 255, 255, .7); }
-  body.fmt-island.isl-open #eq { position: absolute; top: 30px; right: 22px; }
-  body.fmt-island .b, html.glass body.fmt-island :is(#prev, #next, #pp) { color: #fff; background: none; box-shadow: none; }
-  html.glass body.fmt-island #fill { box-shadow: none; }
-  body.fmt-island.isl-open #pp svg { width: 26px; height: 26px; }
-  body.fmt-island.isl-open:not(.isl-ready) .info > *, body.fmt-island.isl-open:not(.isl-ready) #find { opacity: 0; }   /* el contenido aparece cuando termina de crecer */
-  body.fmt-island .info > *, body.fmt-island #find { transition: opacity .15s; }
+  /* abierta: igual que el reproductor normal */
+  body.fmt-island.isl-open .card { --f: 22px; width: 380px; height: 124px; padding: 12px 14px 12px 12px; gap: 12px; align-items: stretch; border-radius: 0 0 30px 30px; }
+  body.fmt-island.isl-open .tile { width: 100px; height: 100px; border-radius: 14px; }
+  body.fmt-island.isl-open .info { flex-direction: column; align-items: stretch; gap: 0; }
+  body.fmt-island.isl-open .head { flex: none; }
+  body.fmt-island.isl-open #title { font-size: 14px; margin-top: 2px; }
+  body.fmt-island.isl-open #artist { display: block; }
+  body.fmt-island.isl-open #find { display: grid; }
+  body.fmt-island.isl-open .prog { display: flex; }
+  body.fmt-island.isl-open .ctr { display: flex; justify-content: flex-start; }
+  body.fmt-island.isl-open .ctr #like { margin: 0 0 0 auto; }
+  /* al abrir, el contenido aparece cuando la isla terminó de crecer; al cerrar, se va antes de que se achique */
+  body.fmt-island .info > *, body.fmt-island #eq { transition: opacity .15s; }
+  body.fmt-island.isl-open:not(.isl-ready) .info > * { opacity: 0; }
+  body.fmt-island.isl-closing .info > *, body.fmt-island.isl-closing #eq { opacity: 0; }
   /* Cristal con el fondo de la app (opcional): el mismo degradé fijo que YouTube Music, Spotify y las ventanas */
   html.appbg #art img { display: none; }
   html.appbg #art { background: radial-gradient(70% 60% at 12% 8%, color-mix(in srgb, var(--lm-tint) 70%, #fff), transparent 70%),
@@ -370,7 +376,7 @@ function render(st) {
       applyTone(ab ? ab.tone : null);
     }
     if (CFG.format !== format) {                                   // el ultra compacto muestra siempre la carátula: se vuelve a elegir el aspecto
-      format = CFG.format || 'normal'; skin = ''; shownTitle = null;
+      format = CFG.format || 'normal'; skin = ''; shownTitle = null; if (format === 'island') islAvg(cover);
       document.body.classList.remove('fmt-normal', 'fmt-compact', 'fmt-mini'); document.body.classList.add('fmt-' + format);
     }
   }
@@ -402,7 +408,7 @@ function render(st) {
   if (was !== playing || !ppDrawn) { $('ppi').innerHTML = playing ? ICON.pause : ICON.play; $('pp').title = playing ? 'Pausar' : 'Reproducir'; ppDrawn = true; }
   if (!!st.liked !== liked) { liked = !!st.liked; $('likei').innerHTML = liked ? ICON.heart : ICON.heartO; $('like').classList.toggle('on', liked); }
   const url = st.cover || '';
-  if (url !== cover) { cover = url; for (const im of [$('cover'), $('artimg')]) if (url) im.src = url; else im.removeAttribute('src'); }
+  if (url !== cover) { cover = url; for (const im of [$('cover'), $('artimg')]) if (url) im.src = url; else im.removeAttribute('src'); if (format === 'island') islAvg(url); }
   setTitle(st.title || 'Lite Music');
   setText($('artist'), st.artist || '');
   setProgress(st);
@@ -606,22 +612,42 @@ $('prev').onclick = () => { trigger('prev'); inv('control', { action: 'prev' });
 $('next').onclick = () => { trigger('next'); inv('control', { action: 'next' }); };
 $('like').onclick = () => inv('control', { action: 'like' });
 $('find').onclick = () => inv('control', { action: 'search' });
+const refit = () => { const t = shownTitle; shownTitle = null; setTitle(t); };   // el título vuelve a medir si entra (con o sin desplazarse)
+// Isla con Cristal: las aletas toman el color medio de la carátula (una vez por canción; si el servidor no lo permite,
+// quedan con el vidrio oscuro de siempre)
+function islAvg(url) {
+  if (!url) return;
+  const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 1;
+      const x = c.getContext('2d'); x.drawImage(im, 0, 0, 1, 1);
+      const [r, g, b] = x.getImageData(0, 0, 1, 1).data;
+      const veil = document.documentElement.classList.contains('light') ? '#fff' : '#1e1e28';
+      document.body.style.setProperty('--isl-avg', `color-mix(in srgb, rgb(${r} ${g} ${b}) 70%, ${veil})`);
+    } catch (_) {}
+  };
+  im.src = url;
+}
 // Isla: al entrar el mouse la ventana crece y la tarjeta se despliega; al salir se repliega y después la ventana se achica.
 let islT = null;
 document.documentElement.addEventListener('mouseenter', () => {
   if (format !== 'island') return;
-  clearTimeout(islT);
+  clearTimeout(islT); document.body.classList.remove('isl-closing');
   if (document.body.classList.contains('isl-open')) return;
   inv('control', { action: 'island', value: 1 });
   requestAnimationFrame(() => document.body.classList.add('isl-open'));
-  islT = setTimeout(() => document.body.classList.add('isl-ready'), 260);
+  islT = setTimeout(() => { document.body.classList.add('isl-ready'); refit(); }, 330);
 });
 document.documentElement.addEventListener('mouseleave', () => {
   if (format !== 'island') return;
   clearTimeout(islT);
-  islT = setTimeout(() => {
-    document.body.classList.remove('isl-ready', 'isl-open');
-    islT = setTimeout(() => inv('control', { action: 'island', value: 0 }), 330);
+  islT = setTimeout(() => {                               // primero se va el contenido, después se achica la isla y al final la ventana
+    document.body.classList.add('isl-closing');
+    islT = setTimeout(() => {
+      document.body.classList.remove('isl-ready', 'isl-open');
+      islT = setTimeout(() => { document.body.classList.remove('isl-closing'); refit(); inv('control', { action: 'island', value: 0 }); }, 330);
+    }, 150);
   }, 250);
 });
 $('bar').onclick = (e) => {
