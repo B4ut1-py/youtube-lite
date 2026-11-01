@@ -337,7 +337,8 @@
   const spGo = (path) => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate', { state: {} })); };
   // resultados: filas (Todo), filas de canciones (Canciones) o tarjetas con su botón de play (Álbumes, Artistas, Listas)
   const spNodes = () => {
-    const rows = [...document.querySelectorAll('#main-view [data-encore-id="listRow"], #main-view [data-testid="tracklist-row"]')];
+    // sin enlace = título de sección ("Descubre listas de Rock"), no un resultado
+    const rows = [...document.querySelectorAll('#main-view [data-encore-id="listRow"], #main-view [data-testid="tracklist-row"]')].filter(spHref);
     if (rows.length) return rows;
     return [...document.querySelectorAll('#main-view [data-encore-id="cardTitle"]')].map((t) => {
       let c = t; while (c && !c.querySelector('[data-testid="play-button"]')) c = c.parentElement;
@@ -384,6 +385,9 @@
     // si el resultado principal también aparece como fila común, se reproduce desde ahí (sin abrir su página)
     const twin = !it.round && spNodes().find((x) => x !== n && spHref(x) === it.href && !x.querySelector('[data-testid="play-button"]'));
     if (twin) return twin.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    // listas y álbumes en "Todo": su play va sobre la imagen y responde a un clic común
+    const cover = n?.querySelector('[data-testid="media"] button');
+    if (cover) return cover.click();
     const own = n?.querySelector('[data-testid="play-button"]');
     if (n && !it.round && !(own && n.matches('[data-encore-id="listRow"]'))) return own ? own.click() : n.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     // artista o resultado principal: abrir su página y tocar su play. Se espera a que la página sea la nueva (si ya
