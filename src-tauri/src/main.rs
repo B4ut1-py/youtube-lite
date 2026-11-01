@@ -596,6 +596,13 @@ fn start_ticker(app: AppHandle) {
                 }
                 let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(30);
                 if due {
+                    // Oculta, la página no dibuja y YouTube Music deja en cada canción trabajo "para el próximo cuadro"
+                    // que retiene ~10 MB y nunca se suelta: se la deja dibujar 1 s (la página está en blanco, no se ve nada).
+                    if trim_at.is_some() {
+                        set_webview_visible(&w, true);
+                        std::thread::sleep(Duration::from_secs(1));
+                        set_webview_visible(&w, false);
+                    }
                     stop_service_workers(&w);
                     let float = app.get_webview_window("float");
                     set_webview_memory(&w, false);
@@ -1109,6 +1116,19 @@ fn set_webview_idle(w: &Webview, idle: bool) {
 }
 #[cfg(not(windows))]
 fn set_webview_idle(_w: &Webview, _idle: bool) {}
+
+// Volver a ocultar solo si la ventana sigue oculta: se comprueba en el hilo principal, el mismo que la muestra.
+#[cfg(windows)]
+fn set_webview_visible(w: &Webview, visible: bool) {
+    let win = w.window();
+    let _ = w.with_webview(move |pw| unsafe {
+        if visible || !win.is_visible().unwrap_or(true) || MINIMIZED.load(std::sync::atomic::Ordering::SeqCst) {
+            let _ = pw.controller().SetIsVisible(visible);
+        }
+    });
+}
+#[cfg(not(windows))]
+fn set_webview_visible(_w: &Webview, _visible: bool) {}
 
 // Solo el nivel de memoria (sin tocar la visibilidad): sirve para "re-apretar" la memoria tras actividad.
 #[cfg(windows)]
