@@ -44,7 +44,6 @@ html.glass .me a:hover{background:var(--hover)}
 <script>
 const inv = (c, a) => window.__TAURI_INTERNALS__.invoke(c, a);
 applyTheme('auto');
-inv('get_settings').then((v) => applyGlass(v.glass_spec)).catch(() => {});
 document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => inv('choose_source', { source: b.dataset.s }));
 document.querySelectorAll('[data-l]').forEach(a => a.onclick = () => inv('open_link', { which: a.dataset.l }));
 </script></body></html>
