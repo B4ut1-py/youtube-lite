@@ -627,7 +627,7 @@ fn start_ticker(app: AppHandle) {
     let mut extra_trim: Vec<Instant> = Vec::new();
     loop {
         std::thread::sleep(Duration::from_secs(1));
-        // Ventana oculta: mientras suena la página vuelve a crecer (cambio de canción, buffers); se le pide bajar la memoria cada 30 s.
+        // Ventana oculta: mientras suena la página vuelve a crecer (cambio de canción, buffers); se le pide bajar la memoria cada 15 s.
         if let Some(w) = main_window(&app) {
             let st = app.state::<AppState>();
             let enabled = st.settings.lock().unwrap().idle_webview;
@@ -666,7 +666,7 @@ fn start_ticker(app: AppHandle) {
                     last_title = title;
                     trim_at = Some(Instant::now() + Duration::from_secs(10));
                 }
-                let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(30);
+                let due = trim_at.map_or(false, |t| Instant::now() >= t) || last_trim.elapsed() > Duration::from_secs(15);
                 if due {
                     // Oculta, la página no dibuja y YouTube Music deja en cada canción trabajo "para el próximo cuadro"
                     // que retiene ~10 MB y nunca se suelta: se la deja dibujar 1 s (la página está en blanco, no se ve nada).
@@ -682,6 +682,8 @@ fn start_ticker(app: AppHandle) {
                     std::thread::sleep(Duration::from_millis(300));
                     set_webview_memory(&w, true);
                     if let Some(f) = &float { set_webview_memory(f.as_ref(), true); }
+                    std::thread::sleep(Duration::from_millis(500));
+                    empty_working_sets();
                     trim_at = None;
                     last_trim = Instant::now();
                 }
@@ -1234,6 +1236,41 @@ fn set_webview_memory(w: &Webview, low: bool) {
 }
 #[cfg(not(windows))]
 fn set_webview_memory(_w: &Webview, _low: bool) {}
+
+// Saca de la RAM las páginas que la app y sus procesos de WebView2 no están usando, lo mismo que hace Windows solo
+// cuando le falta memoria: lo que la música vuelve a necesitar regresa enseguida y el resto queda libre para otros programas.
+#[cfg(windows)]
+fn empty_working_sets() {
+    use windows::Win32::{Foundation::CloseHandle, System::{Diagnostics::ToolHelp::*, ProcessStatus::EmptyWorkingSet,
+        Threading::{GetCurrentProcessId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA}}};
+    unsafe {
+        let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return };
+        let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut all = Vec::new();
+        let mut ok = Process32FirstW(snap, &mut e).is_ok();
+        while ok {
+            all.push((e.th32ProcessID, e.th32ParentProcessID));
+            ok = Process32NextW(snap, &mut e).is_ok();
+        }
+        let _ = CloseHandle(snap);
+        // la app y sus descendientes (el navegador de WebView2 y sus procesos)
+        let mut ids = vec![GetCurrentProcessId()];
+        let mut i = 0;
+        while i < ids.len() {
+            let p = ids[i];
+            ids.extend(all.iter().filter(|(c, par)| *par == p && *c != p && !ids.contains(c)).map(|(c, _)| *c).collect::<Vec<_>>());
+            i += 1;
+        }
+        for id in ids {
+            if let Ok(h) = OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_LIMITED_INFORMATION, false, id) {
+                let _ = EmptyWorkingSet(h);
+                let _ = CloseHandle(h);
+            }
+        }
+    }
+}
+#[cfg(not(windows))]
+fn empty_working_sets() {}
 
 
 // Ventana principal minimizada (se trata igual que oculta en la bandeja).
